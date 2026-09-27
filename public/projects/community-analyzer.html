@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Community Analyzer — Projektdatenblatt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1c2230;
+    --paper:#fbfaf7;
+    --wash:#eef0ea;
+    --grid:#d9dcd2;
+    --amber:#b9781f;
+    --amber-dim:#8f5c15;
+    --slate:#666c63;
+    --disp:'Fraunces','Iowan Old Style',Georgia,serif;
+    --body:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;
+    --mono:'IBM Plex Mono','SF Mono',Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--paper);color:var(--ink);
+    font-family:var(--body);font-size:16px;line-height:1.64;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:0 32px}
+
+  /* ── Kopfleiste ───────────────────────────── */
+  .topbar{
+    background:var(--ink);color:#9298a3;
+    font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    padding:13px 0;border-bottom:1px solid #2b3140;
+  }
+  .topbar .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .topbar b{color:#fff;font-weight:500}
+
+  /* ── Hero ─────────────────────────────────── */
+  .hero{background:var(--ink);color:#fff;padding:88px 0 96px;position:relative;overflow:hidden}
+  .hero::after{
+    content:"";position:absolute;left:0;right:0;bottom:0;height:3px;
+    background:repeating-linear-gradient(90deg,var(--amber) 0 26px,#323847 26px 34px);
+  }
+  .eyebrow{
+    font-family:var(--mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;
+    color:#e0a94f;display:flex;align-items:center;gap:12px;margin-bottom:28px;
+  }
+  .eyebrow::before{content:"";width:26px;height:2px;background:var(--amber);display:block}
+  h1{
+    font-family:var(--disp);font-weight:600;font-optical-sizing:auto;
+    font-size:clamp(38px,6vw,68px);line-height:1.03;letter-spacing:-.015em;margin:0 0 26px;
+  }
+  h1 em{font-style:italic;font-weight:500;color:#e0a94f}
+  .lede{font-size:clamp(17px,2vw,20px);line-height:1.6;max-width:64ch;color:#ced2d9;margin:0}
+  .lede strong{color:#fff;font-weight:600}
+  .tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:36px}
+  .tag{
+    font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+    border:1px solid #3a4050;color:#c1c5cd;padding:6px 11px;border-radius:2px;
+  }
+
+  /* ── Kennzahlenband ───────────────────────── */
+  .specs{border-bottom:1px solid var(--grid);background:var(--wash)}
+  .specs-grid{display:grid;grid-template-columns:repeat(6,1fr)}
+  .spec{padding:26px 20px 24px;border-left:1px solid var(--grid)}
+  .spec:first-child{border-left:0}
+  .spec .k{
+    font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--slate);display:block;margin-bottom:9px;
+  }
+  .spec .v{font-family:var(--disp);font-weight:600;font-size:27px;letter-spacing:-.01em;line-height:1}
+  .spec .v small{font-size:13px;font-weight:500;color:var(--slate);letter-spacing:0;font-family:var(--body)}
+
+  /* ── Abschnitte ───────────────────────────── */
+  section{padding:76px 0}
+  section + section{border-top:1px solid var(--grid)}
+  .label{
+    font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--amber-dim);display:flex;align-items:center;gap:12px;margin-bottom:22px;
+  }
+  .label::before{content:"";width:22px;height:2px;background:var(--amber);display:block}
+  h2{
+    font-family:var(--disp);font-weight:600;font-size:clamp(26px,3.2vw,36px);
+    letter-spacing:-.01em;line-height:1.15;margin:0 0 22px;
+  }
+  p{margin:0 0 18px;max-width:70ch}
+  p.muted{color:var(--slate)}
+
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:start}
+  .two h3{font-family:var(--disp);font-size:18px;font-weight:600;margin:0 0 12px;letter-spacing:-.005em}
+  .rule{height:1px;background:var(--grid);margin:0 0 18px}
+
+  /* ── BR-Kartenraster ──────────────────────── */
+  .br-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--grid);border:1px solid var(--grid);margin-top:8px}
+  .br{background:var(--paper);padding:20px 20px 18px}
+  .br .no{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--amber-dim);display:block;margin-bottom:8px}
+  .br .t{font-weight:600;font-size:14.5px;line-height:1.4}
+  .br-note{
+    font-family:var(--mono);font-size:11px;color:var(--slate);letter-spacing:.02em;
+    padding-top:16px;line-height:1.6;
+  }
+
+  /* ── Sprint-Zeitachse ─────────────────────── */
+  .timeline{position:relative;margin-top:12px;padding-left:2px}
+  .timeline::before{content:"";position:absolute;left:76px;top:8px;bottom:8px;width:2px;background:var(--grid)}
+  .tl-item{display:grid;grid-template-columns:76px 1fr;gap:28px;position:relative;padding:0 0 40px}
+  .tl-item:last-child{padding-bottom:0}
+  .tl-date{font-family:var(--mono);font-size:12px;color:var(--slate);padding-top:3px;text-align:right}
+  .tl-dot{position:absolute;left:71px;top:4px;width:12px;height:12px;border-radius:50%;background:var(--paper);border:2px solid var(--amber)}
+  .tl-body{padding-left:24px}
+  .tl-tag{
+    display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--amber-dim);border:1px solid var(--grid);border-radius:2px;padding:3px 8px;margin-bottom:10px;
+  }
+  .tl-body h3{font-family:var(--disp);font-size:19px;font-weight:600;margin:0 0 8px;letter-spacing:-.005em}
+  .tl-body p{color:var(--slate);font-size:14.5px;margin:0 0 8px;max-width:62ch}
+  .tl-fix{
+    font-size:13.5px;color:var(--ink);background:var(--wash);border-left:2px solid var(--amber);
+    padding:9px 13px;margin-top:4px;max-width:60ch;
+  }
+  .tl-fix b{color:var(--amber-dim)}
+
+  /* ── Git-Workflow-Diagramm ────────────────── */
+  .gitviz{border:1px solid var(--grid);background:var(--wash);padding:28px 8px 8px}
+  .gitviz svg{width:100%;height:auto;display:block}
+  .gitviz-note{padding:14px 20px 4px;font-size:13px;color:var(--slate);font-family:var(--mono)}
+
+  .wizard-panel{
+    margin-top:28px;border:1px solid var(--grid);background:var(--ink);color:#d3d6dc;
+    font-family:var(--mono);font-size:13px;padding:20px 24px;border-radius:2px;
+  }
+  .wizard-panel .wt{color:#e0a94f;font-size:11px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:12px;display:block}
+  .wizard-panel .ln{padding:2px 0;color:#9298a3}
+  .wizard-panel .ln b{color:#fff;font-weight:500}
+  .wizard-panel .ln .n{color:var(--amber)}
+
+  /* ── Präsentationen ───────────────────────── */
+  .deck-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--grid);border:1px solid var(--grid);margin-top:8px}
+  .deck{background:var(--paper);padding:22px 20px}
+  .deck .no{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--amber-dim);text-transform:uppercase}
+  .deck h3{font-family:var(--disp);font-size:18px;font-weight:600;margin:10px 0 8px}
+  .deck p{font-size:13.5px;color:var(--slate);margin:0}
+  .deck ul{margin:10px 0 0;padding-left:16px;font-size:13px;color:var(--slate)}
+  .deck li{margin-bottom:4px}
+
+  /* ── Entscheidungsliste ───────────────────── */
+  .decisions{border-top:1px solid var(--grid);margin-top:8px}
+  .dec{
+    display:grid;grid-template-columns:150px 1fr;gap:28px;
+    padding:24px 0;border-bottom:1px solid var(--grid);
+  }
+  .dec dt{
+    font-family:var(--mono);font-size:11px;letter-spacing:.13em;text-transform:uppercase;
+    color:var(--amber-dim);padding-top:4px;
+  }
+  .dec dd{margin:0}
+  .dec dd b{font-weight:600}
+  .dec dd p{margin:6px 0 0;color:var(--slate);font-size:15px}
+
+  .stack{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--grid);border:1px solid var(--grid);margin-top:26px}
+  .stack div{background:var(--paper);padding:20px}
+  .stack .k{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--slate);display:block;margin-bottom:8px}
+  .stack .v{font-size:15px;font-weight:500;line-height:1.45}
+
+  footer{background:var(--ink);color:#8b909b;padding:44px 0;font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+  footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+
+  .reveal{opacity:0;transform:translateY(14px);transition:opacity .55s ease,transform .55s ease}
+  .reveal.in{opacity:1;transform:none}
+
+  @media (max-width:860px){
+    .wrap{padding:0 20px}
+    .specs-grid{grid-template-columns:repeat(2,1fr)}
+    .spec{border-left:0;border-top:1px solid var(--grid)}
+    .spec:nth-child(2n){border-left:1px solid var(--grid)}
+    .two{grid-template-columns:1fr;gap:34px}
+    .br-grid{grid-template-columns:1fr 1fr}
+    .deck-row{grid-template-columns:1fr 1fr}
+    .dec{grid-template-columns:1fr;gap:6px}
+    .stack{grid-template-columns:1fr}
+    .timeline::before{left:10px}
+    .tl-item{grid-template-columns:20px 1fr;gap:14px}
+    .tl-date{display:none}
+    .tl-dot{left:5px}
+    .tl-body{padding-left:18px}
+    section{padding:52px 0}
+    .hero{padding:60px 0 64px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .reveal{opacity:1;transform:none;transition:none}
+    html{scroll-behavior:auto}
+  }
+  @media print{
+    .hero,.topbar,footer,.wizard-panel{background:#fff !important;color:#000 !important}
+    .hero .lede{color:#333}
+    .reveal{opacity:1;transform:none}
+    section{page-break-inside:avoid;padding:28px 0}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="wrap">
+    <span><b>Projektdatenblatt</b> — Community Analyzer</span>
+    <span>Java 21 · JavaFX · Team von 3 · SS 2026</span>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Praktikum Software Engineering · JKU Linz</div>
+    <h1>Community<br>Analyzer, <em>gebaut<br>über vier Releases</em></h1>
+    <p class="lede">Ein JavaFX-Desktoptool zur Pflege akademischer Communities, Konferenzen,
+      Journals und Forscher:innen samt DBLP-Import — entstanden in einem dreiköpfigen Team
+      über vier bewertete Releases (R1–R3, Final) mit <strong>externem Betreuer-Feedback nach
+      jedem Sprint</strong> und einem vollständig auf GitHub geführten Entwicklungsprozess.</p>
+    <div class="tags">
+      <span class="tag">Java 21 / JavaFX</span>
+      <span class="tag">SQLite</span>
+      <span class="tag">Maven · JUnit 5</span>
+      <span class="tag">JaCoCo · SonarCloud</span>
+      <span class="tag">GitHub Actions CI</span>
+      <span class="tag">BR → SR → US Tracing</span>
+    </div>
+  </div>
+</header>
+
+<div class="specs">
+  <div class="wrap">
+    <div class="specs-grid">
+      <div class="spec"><span class="k">Business Reqs.</span><span class="v">15</span></div>
+      <div class="spec"><span class="k">Testmethoden</span><span class="v">302</span></div>
+      <div class="spec"><span class="k">Branch Coverage</span><span class="v">87<small>%</small></span></div>
+      <div class="spec"><span class="k">Gemergte PRs</span><span class="v">38</span></div>
+      <div class="spec"><span class="k">Releases</span><span class="v">4</span></div>
+      <div class="spec"><span class="k">Teammitglieder</span><span class="v">3</span></div>
+    </div>
+  </div>
+</div>
+
+<section>
+  <div class="wrap">
+    <div class="label">Kurzfassung</div>
+    <h2>Von der Team-Vorlage zum bewerteten Endprodukt</h2>
+    <div class="two">
+      <div>
+        <h3>Ausgangslage</h3>
+        <div class="rule"></div>
+        <p class="muted">Kursvorgabe war ein leeres Setup-Repository mit Issue-Templates für
+          Business Requirements und User Stories. Nach Release 1 stand ein funktionaler
+          CRUD-Prototyp mit DBLP-Live-Import — aber auf einem nicht gemergten Branch, mit
+          einem 328-Zeilen-„God Controller" und ohne Architekturdokument. Das war der
+          Ausgangspunkt für Release 2.</p>
+      </div>
+      <div>
+        <h3>Ergebnis</h3>
+        <div class="rule"></div>
+        <p class="muted">Eine schichtenweise MVC-Anwendung mit fünf domänenspezifischen
+          Controllern, einer Service-Schicht, SQLite-Persistenz und 302 JUnit-Tests bei
+          87&nbsp;% Branch Coverage. 15 Business Requirements sind über Software Requirements
+          bis zu einzelnen User-Story-Issues zurückverfolgbar, jede Änderung lief über
+          Feature-Branch und Pull Request.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="label">Fachlicher Umfang</div>
+    <h2>15 Business Requirements</h2>
+    <p class="muted">Jedes Requirement ist auf GitHub als Issue angelegt, über Software
+      Requirements in User Stories mit Akzeptanzkriterien heruntergebrochen und in der
+      Abschlusspräsentation einzeln der Codebasis gegenübergestellt.</p>
+    <div class="br-grid">
+      <div class="br"><span class="no">BR-01</span><span class="t">Neue Community anlegen</span></div>
+      <div class="br"><span class="no">BR-02</span><span class="t">Bestehende Community bearbeiten</span></div>
+      <div class="br"><span class="no">BR-03</span><span class="t">Community löschen</span></div>
+      <div class="br"><span class="no">BR-04</span><span class="t">Konferenzen &amp; Journals verwalten</span></div>
+      <div class="br"><span class="no">BR-05</span><span class="t">Venues Communities zuordnen</span></div>
+      <div class="br"><span class="no">BR-06</span><span class="t">Konferenzen &amp; Journals bewerten</span></div>
+      <div class="br"><span class="no">BR-07</span><span class="t">Forscher:innen mit Publikationen verknüpfen</span></div>
+      <div class="br"><span class="no">BR-08</span><span class="t">DBLP-Basisdaten importieren</span></div>
+      <div class="br"><span class="no">BR-09</span><span class="t">Personen je Community anzeigen</span></div>
+      <div class="br"><span class="no">BR-10</span><span class="t">Community-Definitionen im-/exportieren</span></div>
+      <div class="br"><span class="no">BR-11</span><span class="t">Überlappungsanalyse von Mitgliedern</span></div>
+      <div class="br"><span class="no">BR-12</span><span class="t">Publikationsvenues ehemaliger Mitglieder</span></div>
+      <div class="br"><span class="no">BR-13</span><span class="t">Publikationen nach Bewertung filtern</span></div>
+      <div class="br"><span class="no">BR-14</span><span class="t">Personen nach Publikationsbewertung filtern</span></div>
+      <div class="br"><span class="no">BR-15</span><span class="t">Konferenzen &amp; Journals nach Bewertung sortieren</span></div>
+    </div>
+    <div class="br-note">BR → SR → US — jede Zeile oben ist auf GitHub ein Issue mit eigenem Label, Milestone und verknüpften User Stories.</div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="label">Prozess</div>
+    <h2>Vier Releases, externes Feedback nach jedem Sprint</h2>
+    <p class="muted">Der Kurs bewertet nicht nur den Code, sondern den Prozess dahinter: nach
+      R1 und zur Sprint-2-Halbzeit gab es strukturiertes schriftliches Feedback von den
+      Betreuenden, das direkt in die nächste Iteration floss.</p>
+    <div class="timeline">
+      <div class="tl-item reveal">
+        <div class="tl-date">Apr 2026</div>
+        <div class="tl-dot"></div>
+        <div class="tl-body">
+          <span class="tl-tag">Release 1 · getaggt 09.04.</span>
+          <h3>Funktionaler Prototyp, strukturelle Baustellen</h3>
+          <p>CRUD mit Live-DBLP-Import funktionierte — allerdings auf einem nicht gemergten
+            Branch, <code>pom.xml</code> und <code>src/</code> lagen im falschen Ordner, ein
+            328-Zeilen-Controller trug die gesamte Anwendungslogik.</p>
+          <div class="tl-fix"><b>Sprint-Planning-Reaktion:</b> Branch mergen, Projektstruktur
+            korrigieren, God Controller in Sprint 2 pro View aufsplitten — priorisiert vor
+            neuen Features.</div>
+        </div>
+      </div>
+      <div class="tl-item reveal">
+        <div class="tl-date">05.05.2026</div>
+        <div class="tl-dot"></div>
+        <div class="tl-body">
+          <span class="tl-tag">Sprint-2-Halbzeit-Feedback</span>
+          <h3>Branch Alert: Arbeit unsichtbar auf main</h3>
+          <p>33 Commits R2-Fortschritt lagen ausschließlich auf <code>release-2</code>;
+            <code>main</code> zeigte noch die unveränderte Kurs-Vorlage. Nur ein einziger PR
+            war im gesamten Repo je geöffnet worden.</p>
+          <div class="tl-fix"><b>Reaktion:</b> PR <code>release-2 → main</code> noch am selben
+            Tag geöffnet, Service-Schicht ergänzt, Merge vor der R2-Deadline abgeschlossen.</div>
+        </div>
+      </div>
+      <div class="tl-item reveal">
+        <div class="tl-date">18.05.2026</div>
+        <div class="tl-dot"></div>
+        <div class="tl-body">
+          <span class="tl-tag">Release 2 · getaggt 19.05.</span>
+          <h3>Fünf Controller, Service-Schicht, SonarCloud</h3>
+          <p>Der God Controller (359 Zeilen) wurde zum 5-Zeilen-Stub; Domänenlogik verteilt
+            auf fünf eigenständige Controller, durchgängig über Services angebunden. Einzige
+            verbliebene Lücke laut Feedback: keine UML-Diagramme im <code>docs/</code>-Ordner.</p>
+          <div class="tl-fix"><b>Reaktion:</b> Architektur- und MVC-Klassendiagramme nach
+            <code>docs/architecture.md</code> verschoben, Issue-Titel der User Stories
+            nachgeschärft.</div>
+        </div>
+      </div>
+      <div class="tl-item reveal">
+        <div class="tl-date">Jun 2026</div>
+        <div class="tl-dot"></div>
+        <div class="tl-body">
+          <span class="tl-tag">Release 3 · getaggt 27.06.</span>
+          <h3>Breite statt Tiefe: verbleibende BRs, Tests, UI</h3>
+          <p>Verbleibende Business Requirements umgesetzt (Überlappungsanalyse, Bewertungsfilter,
+            DBLP-Fixes), Controller- und Service-Tests deutlich ausgebaut, UI überarbeitet.
+            Höchste Commit-Dichte im Projekt in diesem Monat.</p>
+        </div>
+      </div>
+      <div class="tl-item reveal">
+        <div class="tl-date">13.07.2026</div>
+        <div class="tl-dot"></div>
+        <div class="tl-body">
+          <span class="tl-tag">Final Release · getaggt</span>
+          <h3>SQLite-Persistenz, 90,6 % Coverage, Abschlusspräsentation</h3>
+          <p>SQLite-Persistenz nachgezogen, durchsuchbare ComboBoxen statt einfacher Dropdowns,
+            Coverage-Lücken in Modell und Services geschlossen. Abschließend alle User Stories
+            geschlossen, Tag <code>Final-Release</code> auf <code>main</code>, 26-Folien-Abschluss­präsentation mit Live-Demo.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="label">GitHub-Workflow</div>
+    <h2>Ein Ablauf für jede Änderung, kein Ausnahmefall</h2>
+    <p class="muted">Nach dem kritischen R2-Zwischenfeedback („nur 1 PR im ganzen Repo")
+      galt für den Rest des Projekts eine feste Regel: keine Commits direkt auf
+      <code>main</code>, jede Änderung als Feature-Branch mit Pull Request und
+      Teammate-Review.</p>
+
+    <div class="gitviz">
+      <svg viewBox="0 0 980 300" xmlns="http://www.w3.org/2000/svg">
+        <style>
+          .gv-lbl{font-family:'IBM Plex Mono',monospace;font-size:12px;fill:#666c63}
+          .gv-lbl-b{font-family:'IBM Plex Mono',monospace;font-size:12px;fill:#1c2230;font-weight:600}
+          .gv-line{stroke:#c9cdc0;stroke-width:2;fill:none}
+          .gv-main{stroke:#1c2230;stroke-width:3;fill:none}
+        </style>
+        <line x1="60" y1="60" x2="920" y2="60" class="gv-main"/>
+        <text x="20" y="64" class="gv-lbl-b">main</text>
+
+        <path d="M 220 60 C 260 60 260 150 300 150 L 560 150 C 600 150 600 60 640 60" class="gv-line"/>
+        <text x="300" y="140" class="gv-lbl">feature/BR-02-edit-existing-community</text>
+
+        <circle cx="220" cy="60" r="6" fill="#1c2230"/>
+        <circle cx="300" cy="150" r="6" fill="#b9781f"/>
+        <circle cx="420" cy="150" r="6" fill="#b9781f"/>
+        <circle cx="560" cy="150" r="6" fill="#b9781f"/>
+        <circle cx="640" cy="60" r="7" fill="#1c2230"/>
+        <circle cx="780" cy="60" r="6" fill="#1c2230"/>
+        <rect x="855" y="46" width="60" height="28" rx="3" fill="none" stroke="#b9781f" stroke-width="2"/>
+        <text x="865" y="65" class="gv-lbl-b" fill="#b9781f">R2</text>
+
+        <text x="290" y="182" class="gv-lbl">issue #2 · git commit</text>
+        <text x="600" y="182" class="gv-lbl">git push · gh pr create</text>
+        <text x="600" y="42" class="gv-lbl-b">PR #35 review + merge</text>
+        <text x="780" y="42" class="gv-lbl">branch gelöscht</text>
+      </svg>
+      <div class="gitviz-note">Vereinfachte Darstellung des tatsächlichen Ablaufs — jede der 38 gemergten PRs folgte diesem Muster: Branch je Issue, Commits mit Issue-Referenz, Review, Merge, Tag am Release-Ende.</div>
+    </div>
+
+    <div class="wizard-panel">
+      <span class="wt">Eigenes Werkzeug — Git Wizard (PowerShell + GitHub CLI)</span>
+      <div class="ln">1. Start a new feature <span class="n">→</span> <b>Branch aus offenem Issue erzeugen</b></div>
+      <div class="ln">2. Save progress <span class="n">→</span> <b>mvn clean verify</b> + Commit mit Issue-Referenz</div>
+      <div class="ln">3. Submit for review <span class="n">→</span> Push + <b>gh pr create</b></div>
+      <div class="ln">4. Merge &amp; cleanup <span class="n">→</span> Merge, Branch löschen, zurück zu main</div>
+      <div class="ln">5. Create release tag <span class="n">→</span> R1 / R2 / R3 / Final-Release</div>
+    </div>
+    <p class="muted" style="margin-top:16px;font-size:14.5px">Um den Workflow im Team konsistent zu halten statt ihn nur zu dokumentieren, entstand ein interaktives CLI-Menü mit sechs Optionen und kontextsensitiver Hilfe — inklusive eigener Sequenzdiagramme je Schritt.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="label">Follow-ups &amp; Präsentationen</div>
+    <h2>Jeder Sprint endet vor Publikum</h2>
+    <p class="muted">Neben dem Code wurden Fortschritt und Architektur regelmäßig vor den
+      Betreuenden präsentiert — mit Foliensätzen, die im Repository unter <code>docs/</code>
+      versioniert sind.</p>
+    <div class="deck-row">
+      <div class="deck">
+        <span class="no">Sprint Planning</span>
+        <h3>R1 → R2</h3>
+        <p>Schriftliche Gap-Analyse nach R1: Architektur-Empfehlung, priorisierte Kritikpunkte, realistischer Wochenplan für die nächsten vier Wochen.</p>
+      </div>
+      <div class="deck">
+        <span class="no">Sprint 2</span>
+        <h3>Zwischenfolien</h3>
+        <p>Kurzer interner Stand: JUnit-Tests für die wichtigsten Klassen, Ausblick auf die verbleibenden Sprint-Ziele.</p>
+      </div>
+      <div class="deck">
+        <span class="no">Mid-Sprint Review</span>
+        <h3>Branch-Alert-Check-in</h3>
+        <p>Außerplanmäßiges Feedback-Dokument mit Checkliste — Auslöser für den PR-Pflicht-Workflow ab R2.</p>
+      </div>
+      <div class="deck">
+        <span class="no">Abschluss</span>
+        <h3>Final Presentation · 26 Folien</h3>
+        <p>Board-Übersicht, Architektur, alle 15 BRs einzeln der Umsetzung gegenübergestellt, Coverage- und SonarCloud-Dashboard, Live-Demo.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="label">Architektur</div>
+    <h2>Entscheidungen, die aus Feedback entstanden sind</h2>
+    <dl class="decisions">
+      <div class="dec">
+        <dt>Service-Schicht</dt>
+        <dd><b>Controller ohne Geschäftslogik.</b>
+          <p>Nach dem R2-Zwischenfeedback („Controller trägt Logik direkt") wurde zwischen
+            Controllern und <code>AppData</code> eine eigene Service-Schicht eingezogen —
+            <code>CommunityService</code>, <code>ConferenceService</code>,
+            <code>JournalService</code> und weitere — wodurch Geschäftslogik erstmals isoliert
+            testbar wurde.</p></dd>
+      </div>
+      <div class="dec">
+        <dt>Fünf Controller</dt>
+        <dd><b>Ein View, ein Controller.</b>
+          <p>Der ursprüngliche 328-Zeilen-<code>MainController</code> wurde in
+            <code>Community-</code>, <code>Conference-</code>, <code>Journal-</code>,
+            <code>Researcher-</code> und <code>DblpController</code> aufgeteilt;
+            <code>MainController</code> selbst ist heute nur noch Navigation.</p></dd>
+      </div>
+      <div class="dec">
+        <dt>SQLite-Persistenz</dt>
+        <dd><b>Ein DatabaseService für Schema und Zustand.</b>
+          <p>Ein eigener Service initialisiert das Schema, lädt den Zustand beim Start und
+            speichert transaktional nach jeder erfolgreichen Service-Operation. Lokale
+            <code>.db</code>-Dateien sind bewusst von Git ausgeschlossen.</p></dd>
+      </div>
+      <div class="dec">
+        <dt>Coverage-Fokus</dt>
+        <dd><b>87 % Branch Coverage, gezielt auf Fachlogik.</b>
+          <p>JavaFX-Controller und der App-Launcher sind aus der Coverage-Messung
+            ausgenommen — gemessen wird, was sich sinnvoll ohne UI-Testframework prüfen
+            lässt: Modell- und Service-Schicht, inklusive Rand- und Fehlerfällen.</p></dd>
+      </div>
+      <div class="dec">
+        <dt>KI-Einsatz offengelegt</dt>
+        <dd><b>Dokumentiert statt versteckt.</b>
+          <p>Ein eigenes <code>docs/ai-note.md</code> hält fest, wo KI-Unterstützung genutzt
+            wurde — UI-Modernisierung, SQLite-Integration, gezielte Zusatztests für
+            ungetestete Zweige — jeweils im Team geprüft, bevor es in <code>main</code> ging.</p></dd>
+      </div>
+    </dl>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="label">Technik</div>
+    <h2>Stack &amp; Qualitätssicherung</h2>
+    <div class="stack">
+      <div><span class="k">Anwendung</span><span class="v">Java 21, JavaFX + FXML, Maven-Build</span></div>
+      <div><span class="k">Daten</span><span class="v">SQLite (Xerial JDBC), DBLP-XML-Import</span></div>
+      <div><span class="k">Tests</span><span class="v">JUnit 5, 302 Testmethoden, 27 Testklassen</span></div>
+      <div><span class="k">Qualität</span><span class="v">JaCoCo-Coverage-Gate, SonarCloud-Dashboard</span></div>
+      <div><span class="k">CI/CD</span><span class="v">GitHub Actions: Build, Tests, Coverage-Badge, Artefakte</span></div>
+      <div><span class="k">Prozess</span><span class="v">BR/SR/US-Issue-Templates, eigenes Git-Wizard-CLI</span></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Community Analyzer — Projektdatenblatt</span>
+    <span>Manuel · Team 02 · JKU Linz · 2026</span>
+  </div>
+</footer>
+
+<script>
+  (function () {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      document.querySelectorAll('.reveal').forEach(function (el) { el.classList.add('in'); });
+      return;
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+      });
+    }, { threshold: 0.12 });
+    document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
+  })();
+</script>
+</body>
+</html>

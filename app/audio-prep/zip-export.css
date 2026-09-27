@@ -1,0 +1,46 @@
+.zip-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 999px;
+  padding: 13px 18px;
+  background: #c56d4d;
+  color: #fff5df;
+  box-shadow: 0 8px 18px rgba(143, 70, 43, 0.16);
+  cursor: pointer;
+  font: 800 9px inherit;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: transform 0.18s ease, filter 0.18s ease;
+}
+
+.zip-button span {
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 5px;
+  padding: 2px 4px;
+  font-size: 7px;
+}
+
+.zip-button:hover,
+.primary:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+}
+
+.zip-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+@media (max-width: 720px) {
+  .bench-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .zip-button,
+  .primary {
+    padding: 11px 13px;
+  }
+}

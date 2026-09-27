@@ -1,0 +1,31 @@
+{
+  "name": "manuel-portfolio-3d",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@react-three/drei": "^10.0.0",
+    "@react-three/fiber": "^9.1.0",
+    "@react-three/postprocessing": "^3.0.4",
+    "gsap": "^3.12.5",
+    "next": "^15.2.4",
+    "postprocessing": "^6.39.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "three": "^0.173.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.3",
+    "@types/react-dom": "^19.0.2",
+    "@types/three": "^0.173.0",
+    "eslint": "^9.16.0",
+    "eslint-config-next": "^15.2.4",
+    "typescript": "^5.7.2"
+  }
+}
