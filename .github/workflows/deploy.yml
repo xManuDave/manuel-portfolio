@@ -25,8 +25,8 @@ jobs:
           cache: npm
       - id: pages
         uses: actions/configure-pages@v5
-      - run: npm install -g npm@11
-      - run: npm ci
+      # npm ci trips over optional wasm deps (@emnapi) in the lockfile; install still honours it
+      - run: npm install --no-audit --no-fund
       - run: npm run build
         env:
           NEXT_PUBLIC_BASE_PATH: ${{ steps.pages.outputs.base_path }}
