@@ -29,13 +29,12 @@ export function installRenderLookShaderChunks() {
 `;
 }
 
+// Beams enter through the balcony door (room x -2..2, top at world y 4.0) and fall toward the desk.
 const BEAMS: Array<{ start: [number, number, number]; width: number; length: number; strength: number }> = [
-  { start: [-3.7, 4.15, -4.35], width: .95, length: 7.6, strength: .9 },
-  { start: [-2.35, 4.3, -4.35], width: .55, length: 7.2, strength: .65 },
-  { start: [-1.2, 4.05, -4.35], width: 1.25, length: 7.9, strength: 1 },
-  { start: [.35, 4.25, -4.35], width: .7, length: 6.9, strength: .7 },
-  { start: [1.55, 4.1, -4.35], width: 1.1, length: 6.4, strength: .85 },
-  { start: [3.05, 4.3, -4.35], width: .6, length: 5.6, strength: .55 },
+  { start: [-1.65, 3.75, -4.25], width: .55, length: 7.6, strength: .8 },
+  { start: [-.95, 3.85, -4.25], width: .8, length: 7.4, strength: 1 },
+  { start: [-.15, 3.7, -4.25], width: .45, length: 7.0, strength: .65 },
+  { start: [.6, 3.85, -4.25], width: .9, length: 6.8, strength: .9 },
 ];
 
 const beamVertex = `
@@ -162,7 +161,7 @@ class CinematicGradeEffect extends Effect {
       uniforms: new Map<string, THREE.Uniform>([
         ["saturation", new THREE.Uniform(1.24)],
         ["contrast", new THREE.Uniform(.32)],
-        ["shadowTint", new THREE.Uniform(new THREE.Vector3(-.012, .004, .022))],
+        ["shadowTint", new THREE.Uniform(new THREE.Vector3(-.004, .002, .01))],
         ["highlightTint", new THREE.Uniform(new THREE.Vector3(.035, .012, -.03))],
       ]),
     });
@@ -179,11 +178,11 @@ function CinematicGrade() {
 export function RenderPostFX({ compact }: { compact: boolean }) {
   return <EffectComposer multisampling={compact ? 0 : 4}>
     <N8AO halfRes quality={compact ? "performance" : "medium"} aoRadius={.55} distanceFalloff={.9} intensity={1.35} color="#3f3127" />
-    <Bloom mipmapBlur intensity={.32} luminanceThreshold={.92} luminanceSmoothing={.25} radius={.72} />
+    <Bloom mipmapBlur intensity={.32} luminanceThreshold={1.0} luminanceSmoothing={.25} radius={.72} />
     {/* The composer disables renderer tone mapping; compress HDR light after bloom here. */}
     <ToneMapping mode={ToneMappingMode.AGX} />
     <CinematicGrade />
-    <Vignette offset={.32} darkness={.42} />
+    <Vignette offset={.3} darkness={.52} />
     <Noise premultiply blendFunction={BlendFunction.OVERLAY} opacity={.12} />
   </EffectComposer>;
 }

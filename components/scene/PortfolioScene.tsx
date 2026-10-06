@@ -30,7 +30,7 @@ const OBJECT_STAGE_SHOT: Shot = { position: [-.55, 3.25, 8.1], target: [0, 1.7, 
 const MONITOR_ALIGNMENT_SHOT: Shot = { position: [3.39, 1.7, 3.0], target: [3.39, .94, -2.15] };
 
 const SHOTS: Record<FocusName, Shot> = {
-  home: { position: [-1.05, 4.28, 10.7], target: [0, 1.08, -0.52] },
+  home: { position: [-0.5, 5.3, 10.0], target: [0.1, 0.85, -1.0] },
   projects: OBJECT_STAGE_SHOT,
   about: OBJECT_STAGE_SHOT,
   contact: OBJECT_STAGE_SHOT,
@@ -39,7 +39,7 @@ const SHOTS: Record<FocusName, Shot> = {
 
 function RoomEnvironment() {
   return (
-    <Environment background={false} frames={1} resolution={256} environmentIntensity={0.46}>
+    <Environment background={false} frames={1} resolution={256} environmentIntensity={0.55}>
       <Lightformer form="rect" intensity={2.5} color="#ffd6a4" position={[0, 3.4, -6]} rotation={[0, 0, 0]} scale={[6, 4.5, 1]} />
       <Lightformer form="rect" intensity={1.25} color="#fff2df" position={[-3, 4.5, 6]} rotation={[0, Math.PI, 0]} scale={[8, 5, 1]} />
       <Lightformer form="rect" intensity={0.6} color="#dce6ec" position={[6, 3, 2]} rotation={[0, -Math.PI / 2, 0]} scale={[5, 4, 1]} />
@@ -57,12 +57,13 @@ function WarmSceneShaders() {
   return null;
 }
 
-const SUN_POSITION: [number, number, number] = [-2.6, 6.8, -5.6];
+// Same low sunrise direction as before, pulled back so the new ceiling stays inside the shadow frustum.
+const SUN_POSITION: [number, number, number] = [-4.42, 11.21, -10.3];
 const SUN_TARGET: [number, number, number] = [0, 0.5, 1.15];
 
 function WindowLighting({ compact, theatre = false }: { compact: boolean; theatre?: boolean }) {
   const sunlight = useRef<THREE.DirectionalLight>(null);
-  useFrame((_,dt)=>{if(sunlight.current)sunlight.current.intensity=THREE.MathUtils.damp(sunlight.current.intensity,theatre?1.15:3.9,3,dt);});
+  useFrame((_,dt)=>{if(sunlight.current)sunlight.current.intensity=THREE.MathUtils.damp(sunlight.current.intensity,theatre?1.15:5.2,3,dt);});
   const tableTarget = useMemo(() => {
     const target = new THREE.Object3D();
     target.position.set(...SUN_TARGET);
@@ -71,26 +72,28 @@ function WindowLighting({ compact, theatre = false }: { compact: boolean; theatr
   return <>
     <primitive object={tableTarget} />
     {/* Low, slightly cool fill keeps shadowed sides readable while the warm sun carries the form. */}
-    <ambientLight intensity={0.08} color="#f2e7d7" />
-    <hemisphereLight args={["#d6e1ec", "#7a5a40", 0.5]} />
+    <ambientLight intensity={0.12} color="#ffe6c8" />
+    <hemisphereLight args={["#ffe2bd", "#9a6a45", 0.75]} />
     <rectAreaLight position={[0, 3.05, -3.85]} rotation={[0, Math.PI, 0]} width={5.6} height={4.1} intensity={2.6} color="#ffcf92" />
     {/* A broad reflected fill lets the front-facing wood, paper and ceramic retain their own colors. */}
-    <rectAreaLight position={[-2.5, 4.5, 5.4]} rotation={[-.35, 0, 0]} width={8} height={5} intensity={.78} color="#fff0db" />
+    <rectAreaLight position={[-2.5, 4.5, 5.4]} rotation={[-.35, 0, 0]} width={8} height={5} intensity={.55} color="#ffe9cc" />
+    {/* Warm bounce from the sunlit floor back onto the cream walls and ceiling. */}
+    <rectAreaLight position={[0, -1.0, -1.0]} rotation={[Math.PI / 2, 0, 0]} width={9} height={6} intensity={.6} color="#ffc68a" />
     <rectAreaLight position={[4.9, 3.5, .2]} rotation={[0, -Math.PI / 2, 0]} width={4.2} height={3.6} intensity={.5} color="#d4e2ec" />
     <directionalLight
       ref={sunlight}
       castShadow
       target={tableTarget}
       position={SUN_POSITION}
-      intensity={3.9}
-      color="#ffc88a"
+      intensity={5.2}
+      color="#ffc480"
       shadow-mapSize={[compact ? 1024 : 2048, compact ? 1024 : 2048]}
       shadow-camera-left={-7.5}
       shadow-camera-right={7.5}
       shadow-camera-top={7}
       shadow-camera-bottom={-7}
-      shadow-camera-near={2}
-      shadow-camera-far={20}
+      shadow-camera-near={4}
+      shadow-camera-far={28}
       shadow-bias={-0.00008}
       shadow-normalBias={0.018}
     />
@@ -215,7 +218,7 @@ function CinematicCamera({ focus, compact }: { focus: FocusName; compact: boolea
 
   useFrame(() => {
     if (camera instanceof THREE.PerspectiveCamera) {
-      const fov = (compact ? 48 : 44) + pose.current.lens;
+      const fov = (compact ? 48 : 41) + pose.current.lens;
       if (Math.abs(camera.fov - fov) > .001) { camera.fov = fov; camera.updateProjectionMatrix(); }
     }
     const scratch = vectors.current;
@@ -250,7 +253,7 @@ function IntroScreen({ onEnter }: { onEnter: () => void }) {
   };
   if (phase === "gone") return null;
   return <button type="button" className={`portfolio-intro${phase === "leaving" ? " is-leaving" : ""}`} onClick={enter} aria-label="Enter Manuel Strunz portfolio and start the room radio">
-    <span className="portfolio-intro-backdrop" aria-hidden="true" style={{ "--intro-backdrop": `url("${asset("/reference/current-homepage-render-quality-pass-67.png")}")` } as CSSProperties}/>
+    <span className="portfolio-intro-backdrop" aria-hidden="true" style={{ "--intro-backdrop": `url("${asset("/reference/current-homepage-reference-match-pass-68.png")}")` } as CSSProperties}/>
     <span className="portfolio-intro-wash" aria-hidden="true"/>
     <span className="portfolio-intro-title" aria-hidden="true"><span>Manuel</span><span>Strunz</span></span>
     <span className="portfolio-intro-prompt"><i aria-hidden="true"/> Click anywhere to enter <small>Sound on</small></span>
@@ -432,7 +435,7 @@ export default function PortfolioScene() {
 
   return (
     <div className="canvas-shell" data-focus={focus} data-panel-open={(visiblePanel !== null && visiblePanel !== "projects") || theatre.reading} data-project-stage={visiblePanel === "projects"} data-project={theatre.selected ?? "choose"} data-project-reading={theatre.reading} data-camera-phase={focus === "home" ? "overview" : visiblePanel ? "content" : focus === "skills" ? "screen-entry" : "object-focus"} data-wind-gust={windGust} data-wind-active={windActive} data-entered={entered}>
-      <Canvas aria-label="Interactive stylized open-air studio" shadows="soft" frameloop={entered && !theatre.reading ? "always" : "demand"} camera={{ position: SHOTS.home.position, fov: compact ? 48 : 44, near: 0.1, far: 80 }} dpr={compact ? [1, 1.2] : [1, 1.5]} gl={{ antialias: true, powerPreference: "high-performance", toneMapping: THREE.NoToneMapping, toneMappingExposure: 1.05 }}>
+      <Canvas aria-label="Interactive stylized workroom" shadows="soft" frameloop={entered && !theatre.reading ? "always" : "demand"} camera={{ position: SHOTS.home.position, fov: compact ? 48 : 41, near: 0.1, far: 80 }} dpr={compact ? [1, 1.2] : [1, 1.5]} gl={{ antialias: true, powerPreference: "high-performance", toneMapping: THREE.NoToneMapping, toneMappingExposure: 1.05 }}>
         <color attach="background" args={["#d99558"]} />
         <fog attach="fog" args={["#dcc2a4", 17, 38]} />
         <WindowLighting compact={compact} theatre={visiblePanel === "projects"}/>

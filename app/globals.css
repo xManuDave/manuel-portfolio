@@ -38,7 +38,7 @@ body { font-family: Inter, ui-sans-serif, system-ui, sans-serif; overflow: hidde
 .scene-callout::after { content: ""; position: absolute; left: 50%; top: calc(100% + 7px); width: 8px; height: 8px; border-right: 2px solid rgba(255,248,230,.9); border-bottom: 2px solid rgba(255,248,230,.9); transform: translateX(-50%) rotate(45deg); filter: drop-shadow(0 2px 3px rgba(54,34,20,.25)); }
 button.scene-callout { cursor: pointer; transition: transform .18s ease, background .18s ease; }
 button.scene-callout:hover, button.scene-callout:focus-visible { background: rgba(57,43,31,.94); outline: 2px solid rgba(255,236,190,.72); outline-offset: 2px; transform: translateY(-2px); }
-.hobbies-callout { left: 25%; top: 32%; }
+.hobbies-callout { left: 17%; top: 30%; }
 .projects-callout { left: 34%; top: 57%; }
 .about-callout { left: 56%; top: 61%; }
 .contact-callout { left: 70%; top: 64%; }
