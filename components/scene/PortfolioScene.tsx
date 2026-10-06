@@ -2,8 +2,6 @@
 
 import { Environment, Lightformer, SoftShadows } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Bloom, EffectComposer, N8AO, ToneMapping } from "@react-three/postprocessing";
-import { ToneMappingMode } from "postprocessing";
 import gsap from "gsap";
 import { type CSSProperties, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
@@ -19,8 +17,10 @@ import ProjectViewer from "./ProjectViewer";
 import { ProjectTheatreHUD, ProjectTheatreScene } from "./ProjectTheatre";
 import { ROI_DEMO, type ProjectId } from "@/lib/project-theatre";
 import WholesomeQuote from "./WholesomeQuote";
+import { installRenderLookShaderChunks, RenderPostFX, WindowLightShafts } from "./RenderLook";
 
 RectAreaLightUniformsLib.init();
+installRenderLookShaderChunks();
 // Keep motion on the same wall clock as audio/CSS/panel reveals, even after a slow GPU frame.
 gsap.ticker.lagSmoothing(0);
 
@@ -39,7 +39,7 @@ const SHOTS: Record<FocusName, Shot> = {
 
 function RoomEnvironment() {
   return (
-    <Environment background={false} frames={1} resolution={128} environmentIntensity={0.52}>
+    <Environment background={false} frames={1} resolution={256} environmentIntensity={0.46}>
       <Lightformer form="rect" intensity={2.5} color="#ffd6a4" position={[0, 3.4, -6]} rotation={[0, 0, 0]} scale={[6, 4.5, 1]} />
       <Lightformer form="rect" intensity={1.25} color="#fff2df" position={[-3, 4.5, 6]} rotation={[0, Math.PI, 0]} scale={[8, 5, 1]} />
       <Lightformer form="rect" intensity={0.6} color="#dce6ec" position={[6, 3, 2]} rotation={[0, -Math.PI / 2, 0]} scale={[5, 4, 1]} />
@@ -57,43 +57,48 @@ function WarmSceneShaders() {
   return null;
 }
 
+const SUN_POSITION: [number, number, number] = [-2.6, 6.8, -5.6];
+const SUN_TARGET: [number, number, number] = [0, 0.5, 1.15];
+
 function WindowLighting({ compact, theatre = false }: { compact: boolean; theatre?: boolean }) {
   const sunlight = useRef<THREE.DirectionalLight>(null);
-  useFrame((_,dt)=>{if(sunlight.current)sunlight.current.intensity=THREE.MathUtils.damp(sunlight.current.intensity,theatre?1.15:3.25,3,dt);});
+  useFrame((_,dt)=>{if(sunlight.current)sunlight.current.intensity=THREE.MathUtils.damp(sunlight.current.intensity,theatre?1.15:3.9,3,dt);});
   const tableTarget = useMemo(() => {
     const target = new THREE.Object3D();
-    target.position.set(0, 0.5, 1.15);
+    target.position.set(...SUN_TARGET);
     return target;
   }, []);
   return <>
     <primitive object={tableTarget} />
-    <ambientLight intensity={0.16} color="#f2e7d7" />
-    <hemisphereLight args={["#e3eaf0", "#80654b", 0.62]} />
-    <rectAreaLight position={[0, 3.05, -3.85]} rotation={[0, Math.PI, 0]} width={5.6} height={4.1} intensity={2.1} color="#ffd39c" />
+    {/* Low, slightly cool fill keeps shadowed sides readable while the warm sun carries the form. */}
+    <ambientLight intensity={0.08} color="#f2e7d7" />
+    <hemisphereLight args={["#d6e1ec", "#7a5a40", 0.5]} />
+    <rectAreaLight position={[0, 3.05, -3.85]} rotation={[0, Math.PI, 0]} width={5.6} height={4.1} intensity={2.6} color="#ffcf92" />
     {/* A broad reflected fill lets the front-facing wood, paper and ceramic retain their own colors. */}
-    <rectAreaLight position={[-2.5, 4.5, 5.4]} rotation={[-.35, 0, 0]} width={8} height={5} intensity={1.1} color="#fff0db" />
-    <rectAreaLight position={[4.9, 3.5, .2]} rotation={[0, -Math.PI / 2, 0]} width={4.2} height={3.6} intensity={.42} color="#dce7eb" />
+    <rectAreaLight position={[-2.5, 4.5, 5.4]} rotation={[-.35, 0, 0]} width={8} height={5} intensity={.78} color="#fff0db" />
+    <rectAreaLight position={[4.9, 3.5, .2]} rotation={[0, -Math.PI / 2, 0]} width={4.2} height={3.6} intensity={.5} color="#d4e2ec" />
     <directionalLight
       ref={sunlight}
       castShadow
       target={tableTarget}
-      position={[-2.6, 6.8, -5.6]}
-      intensity={3.25}
-      color="#ffd29a"
+      position={SUN_POSITION}
+      intensity={3.9}
+      color="#ffc88a"
       shadow-mapSize={[compact ? 1024 : 2048, compact ? 1024 : 2048]}
-      shadow-camera-left={-8}
-      shadow-camera-right={8}
-      shadow-camera-top={8}
-      shadow-camera-bottom={-8}
-      shadow-camera-near={0.5}
-      shadow-camera-far={22}
+      shadow-camera-left={-7.5}
+      shadow-camera-right={7.5}
+      shadow-camera-top={7}
+      shadow-camera-bottom={-7}
+      shadow-camera-near={2}
+      shadow-camera-far={20}
       shadow-bias={-0.00008}
       shadow-normalBias={0.018}
     />
-    {!compact && <SoftShadows size={28} samples={10} />}
+    {!compact && <SoftShadows size={22} samples={12} focus={0.6} />}
     <pointLight position={[-5.2, 1.25, 1.8]} intensity={1.8} distance={4.8} decay={2} color="#ffc477" />
     <pointLight position={[3.0, 2.15, -1.1]} intensity={1.35} distance={5.2} decay={2} color="#ffd7a0" />
     <pointLight position={[4.25, 4.85, -3.55]} intensity={1.35} distance={3.2} decay={2} color="#ffd779" />
+    <WindowLightShafts sun={SUN_POSITION} target={SUN_TARGET} intensity={theatre ? .25 : 1} />
   </>;
 }
 
@@ -245,7 +250,7 @@ function IntroScreen({ onEnter }: { onEnter: () => void }) {
   };
   if (phase === "gone") return null;
   return <button type="button" className={`portfolio-intro${phase === "leaving" ? " is-leaving" : ""}`} onClick={enter} aria-label="Enter Manuel Strunz portfolio and start the room radio">
-    <span className="portfolio-intro-backdrop" aria-hidden="true" style={{ "--intro-backdrop": `url("${asset("/reference/current-homepage-wind-gust-pass-54.png")}")` } as CSSProperties}/>
+    <span className="portfolio-intro-backdrop" aria-hidden="true" style={{ "--intro-backdrop": `url("${asset("/reference/current-homepage-render-quality-pass-67.png")}")` } as CSSProperties}/>
     <span className="portfolio-intro-wash" aria-hidden="true"/>
     <span className="portfolio-intro-title" aria-hidden="true"><span>Manuel</span><span>Strunz</span></span>
     <span className="portfolio-intro-prompt"><i aria-hidden="true"/> Click anywhere to enter <small>Sound on</small></span>
@@ -437,12 +442,7 @@ export default function PortfolioScene() {
           {visiblePanel === "projects" && <ProjectTheatreScene {...theatre} compact={compact} onSelect={selectProject} onAccent={projectAccent}/>}
           <WarmSceneShaders />
         </Suspense>
-        <EffectComposer multisampling={compact ? 0 : 2}>
-          <N8AO halfRes quality={compact ? "performance" : "medium"} aoRadius={.28} distanceFalloff={.8} intensity={.82} color="#51463b" />
-          <Bloom mipmapBlur intensity={.16} luminanceThreshold={1.12} luminanceSmoothing={.3} />
-          {/* The composer disables renderer tone mapping; compress HDR light after bloom here. */}
-          <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
-        </EffectComposer>
+        <RenderPostFX compact={compact} />
         <CinematicCamera focus={focus} compact={compact} />
       </Canvas>
       {focus === "home" && <div className="scene-callouts" aria-label="Scene objects">
