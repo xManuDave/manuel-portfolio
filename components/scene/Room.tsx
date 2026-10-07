@@ -11,6 +11,7 @@ import StudioPlant from "./StudioPlant";
 import { CoffeeMug, ContactPhone, DesktopKeyboard } from "./HeroProps";
 import { CINEMATIC, CINEMATIC_COLORS } from "@/lib/scene-cinematic";
 import SelectionVFX from "./SelectionVFX";
+import CozyCat from "./CozyCat";
 
 export type FocusName = "home" | "projects" | "about" | "contact" | "skills";
 type V3 = [number, number, number];
@@ -299,7 +300,7 @@ function Hotspot({ name, position, children, active, onFocus }: { name: Exclude<
       timeline.to(motion, { charge: 1, light: .65, duration: CINEMATIC.charge, ease: "power2.in" }, 0)
         .to(motion, { charge: 0, light: 2.8, duration: .18, ease: "power3.out" }, CINEMATIC.charge)
         .to(motion, { progress: 1.075, duration: CINEMATIC.liftEnd - CINEMATIC.charge, ease: "power3.inOut" }, CINEMATIC.charge)
-        .to(motion, { bank: name === "skills" ? 0 : -.06, duration: CINEMATIC.liftEnd - CINEMATIC.charge, ease: "power3.inOut" }, CINEMATIC.charge)
+        .to(motion, { twist: name === "skills" ? 0 : Math.PI * 2, bank: name === "skills" ? 0 : -.12, duration: CINEMATIC.liftEnd - CINEMATIC.charge, ease: "power3.inOut" }, CINEMATIC.charge)
         .to(motion, { progress: 1, bank: 0, light: 1.1, duration: CINEMATIC.reveal - CINEMATIC.liftEnd, ease: "sine.inOut" }, CINEMATIC.liftEnd)
         .to(motion, { light: 2.1, duration: .12, ease: "power2.out" }, CINEMATIC.reveal)
         .to(motion, { light: .85, duration: .65, ease: "sine.out" });
@@ -385,7 +386,7 @@ function WarmDust() {
     points.current.rotation.y = Math.sin(clock.elapsedTime * .08) * .035;
     points.current.position.y = Math.sin(clock.elapsedTime * .18) * .05;
   });
-  return <points ref={points}><bufferGeometry><bufferAttribute attach="attributes-position" args={[positions, 3]} /></bufferGeometry><pointsMaterial map={mote} color="#ffdca0" size={.045} transparent opacity={.35} sizeAttenuation depthWrite={false} blending={THREE.AdditiveBlending} /></points>;
+  return <points ref={points}><bufferGeometry><bufferAttribute attach="attributes-position" args={[positions, 3]} /></bufferGeometry><pointsMaterial map={mote} color="#ffdca0" size={.05} transparent opacity={.5} sizeAttenuation depthWrite={false} blending={THREE.AdditiveBlending} /></points>;
 }
 
 function FloorBoards() {
@@ -1170,14 +1171,57 @@ function CoffeeSteam() {
     const gust = windEnvelope(performance.now() / 1000 - gustStartedAt.current);
     wisps.current.forEach((sprite,index) => {
       if (!sprite) return;
-      const phase = (clock.elapsedTime * .12 + index * .34) % 1;
-      sprite.position.set(-2.43 + Math.sin(clock.elapsedTime * .85 + index * 2.1) * (.035 + phase * .075) + gust * (.17 + index * .03), 1.94 + phase * .82 - gust * phase * .12, 2.68 + Math.sin(clock.elapsedTime * .42 + index) * .025 + gust * .48);
+      const phase = (clock.elapsedTime * .19 + index * .34) % 1;
+      sprite.position.set(-2.43 + Math.sin(clock.elapsedTime * .85 + index * 2.1) * (.035 + phase * .075) + gust * (.34 + index * .06), 1.94 + phase * .82 - gust * phase * .12, 2.68 + Math.sin(clock.elapsedTime * .42 + index) * .025 + gust * .48);
       const size = .22 + phase * .34;
       sprite.scale.set(size * (.72 + gust * 1.05),size * (1 - gust * .24),1);
       (sprite.material as THREE.SpriteMaterial).opacity = Math.sin(phase * Math.PI) * .2;
     });
   });
   return <group>{[0,1,2].map(index=><sprite key={index} ref={node => { wisps.current[index] = node; }} position={[-2.43,1.84 + index*.16,2.68]} scale={[.16,.22,1]}><spriteMaterial map={steamTexture} color="#fff0dc" transparent opacity={.08} depthWrite={false}/></sprite>)}</group>;
+}
+
+function DriftingLeaves() {
+  const leafRefs = useRef<Array<THREE.Group | null>>([]);
+  const reducedMotion = useReducedMotionRef();
+  const windGust = useContext(WindGustContext);
+  const gustStartedAt = useRef(-100);
+  const progress = useRef<number[]>([]);
+  const leafTexture = useTexture(asset("/textures/stylized-drifting-leaf-v1.png"));
+  useEffect(() => {
+    leafTexture.colorSpace = THREE.SRGBColorSpace;
+    leafTexture.anisotropy = 8;
+    leafTexture.needsUpdate = true;
+  }, [leafTexture]);
+  const leaves = useMemo(() => Array.from({length:7},(_,index) => ({
+    phase: (index * .137 + .08) % 1,
+    speed: .018 + (index % 4) * .0035,
+    y: 1.05 + (index % 5) * .62,
+    z: -2.6 + (index % 4) * 1.72,
+    scale: .5 + (index % 3) * .13,
+    color: ["#ffffff","#f0cea0","#d8e2bf","#ffc59d"][index % 4],
+  })), []);
+  useEffect(() => {
+    progress.current = leaves.map((leaf) => leaf.phase);
+  }, [leaves]);
+  useEffect(() => {
+    if (windGust > 0) gustStartedAt.current = performance.now() / 1000;
+  }, [windGust]);
+  useFrame(({clock}, delta) => {
+    if (reducedMotion.current) return;
+    const gust = windEnvelope(performance.now() / 1000 - gustStartedAt.current);
+    leaves.forEach((leaf,index) => {
+      const group = leafRefs.current[index];
+      if (!group) return;
+      progress.current[index] = ((progress.current[index] ?? leaf.phase) + leaf.speed * delta * (1 + gust * 13)) % 1;
+      const travel = progress.current[index];
+      group.position.set(-6.4 + travel * 13.1, leaf.y + Math.sin(clock.elapsedTime * (.7 + gust * 3.5) + index * 1.8) * (.32 + gust * .2), leaf.z + Math.sin(clock.elapsedTime * .24 + index) * .34 + gust * (1.15 + index % 3 * .18));
+      group.rotation.set(clock.elapsedTime * (.38 + index*.025 + gust * 2.8), Math.sin(clock.elapsedTime*(.46 + gust * 2.4)+index)*1.25, clock.elapsedTime * (.58 + index*.035 + gust * 3.2));
+    });
+  });
+  return <group>{leaves.map((leaf,index)=><group key={index} ref={node => { leafRefs.current[index] = node; }} position={[-6.4+leaf.phase*13.1,leaf.y,leaf.z]} scale={leaf.scale}>
+    <mesh rotation={[0,0,.55]} scale={[.78,1,1]}><planeGeometry args={[.48,.54]}/><meshBasicMaterial map={leafTexture} color={leaf.color} transparent alphaTest={.08} depthWrite={false} toneMapped={false} side={THREE.DoubleSide}/></mesh>
+  </group>)}</group>;
 }
 
 function WindResponsiveProps() {
@@ -1200,10 +1244,9 @@ function WindResponsiveProps() {
     papers.forEach((paper,index) => {
       const group = paperRefs.current[index];
       if (!group) return;
-      const flutter = Math.sin(clock.elapsedTime * (3.2 + index * .6) + index) * gust;
-      // A gust only lifts and nudges the sheets in place; they no longer sail off the table.
-      group.position.set(paper.position[0] + gust * paper.travel[0] * .12, paper.position[1] + Math.sin(normalized * Math.PI) * gust * .035, paper.position[2] + gust * paper.travel[1] * .12);
-      group.rotation.set(-Math.PI / 2 + flutter * .12, paper.rotation + gust * .08, flutter * .06);
+      const flutter = Math.sin(clock.elapsedTime * (9 + index * 1.7) + index) * gust;
+      group.position.set(paper.position[0] + gust * paper.travel[0], paper.position[1] + Math.sin(normalized * Math.PI) * gust * (.3 + index * .07), paper.position[2] + gust * paper.travel[1]);
+      group.rotation.set(-Math.PI / 2 + flutter * .42, paper.rotation + gust * (.35 + index * .14), flutter * .32);
     });
   });
   return <group>{papers.map((paper,index)=><group key={index} ref={node => { paperRefs.current[index] = node; }} position={paper.position} rotation={[-Math.PI/2,paper.rotation,0]}>
@@ -1218,7 +1261,9 @@ function DistantBirds() {
   const reducedMotion = useReducedMotionRef();
   const birds = useMemo(() => [
     {phase:.02,y:3.95,speed:.018,scale:.72},
+    {phase:.16,y:4.18,speed:.015,scale:.55},
     {phase:.34,y:3.72,speed:.021,scale:.64},
+    {phase:.55,y:4.35,speed:.014,scale:.46},
     {phase:.76,y:3.9,speed:.017,scale:.52},
   ],[]);
   useFrame(({clock}) => {
@@ -1229,7 +1274,7 @@ function DistantBirds() {
       const progress = (bird.phase + clock.elapsedTime * bird.speed) % 1;
       group.position.x = -4.65 + progress * 9.3;
       group.position.y = bird.y + Math.sin(clock.elapsedTime * .34 + index) * .08;
-      const flap = Math.sin(clock.elapsedTime * (2.8 + index*.2) + index) * .22;
+      const flap = Math.sin(clock.elapsedTime * (4.2 + index*.3) + index) * .26;
       group.children[0].rotation.z = .28 + flap;
       group.children[1].rotation.z = -.28 - flap;
     });
@@ -1241,7 +1286,7 @@ function DistantBirds() {
 }
 
 function AtmosphericStoryMotion() {
-  return <group><CoffeeSteam/><WindResponsiveProps/><DistantBirds/></group>;
+  return <group><CoffeeSteam/><DriftingLeaves/><WindResponsiveProps/><DistantBirds/></group>;
 }
 
 function HobbyDetails() {
@@ -1265,6 +1310,7 @@ export default function Room({ activeFocus, onFocus, windGust = 0, projectTheatr
       <TableDressing active={activeFocus} onFocus={onFocus}/>
     </group>
     <group position={[-.12,0,.15]} scale={1.08}><Lounge/></group>
+    <CozyCat position={[-4.42,.72,.94]} rotation={[0,.08,0]} scale={.6}/>
     <LoungeDetails/>
     <Workstation active={activeFocus} onFocus={onFocus}/>
     <ArchitectLamp position={[2.5,1.13,-2.35]} rotation={[0,.5,0]}/>
