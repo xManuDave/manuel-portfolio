@@ -3,15 +3,15 @@
 import { asset } from "@/lib/asset";
 import { RoundedBox, useGLTF, useTexture } from "@react-three/drei";
 import { ThreeEvent, useFrame } from "@react-three/fiber";
-import { createContext, ReactNode, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, ReactNode, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import gsap from "gsap";
 import { furnitureAssetNames, furnitureAssetPath, type FurnitureAssetName } from "@/lib/scene-assets";
-import CozyCat from "./CozyCat";
 import StudioPlant from "./StudioPlant";
 import { CoffeeMug, ContactPhone, DesktopKeyboard } from "./HeroProps";
 import { CINEMATIC, CINEMATIC_COLORS } from "@/lib/scene-cinematic";
 import SelectionVFX from "./SelectionVFX";
+import CozyCat from "./CozyCat";
 
 export type FocusName = "home" | "projects" | "about" | "contact" | "skills";
 type V3 = [number, number, number];
@@ -138,9 +138,9 @@ function StylizedMaterial({ color, surface = "paint" }: { color: string; surface
   const maps = useMemo(() => ({ map: surfaceTexture(surface), bump: surfaceTexture(surface, true) }), [surface]);
   const roughness = surface === "floor" ? .92 : surface === "wood" ? .78 : surface === "paper" ? .92 : surface === "fabric" || surface === "curtain" ? .96 : .9;
   const bumpScale = surface === "wood" ? .05 : surface === "fabric" ? .026 : surface === "plaster" ? .022 : .014;
-  const tint = useMemo(() => surface === "floor" ? new THREE.Color(color).lerp(new THREE.Color("#e8d4b8"), .48) : surface === "wood" ? new THREE.Color("#dbc9b4") : surface === "plaster" ? new THREE.Color("#ecdbc5") : surface === "fabric" ? new THREE.Color(color).lerp(new THREE.Color("#ffffff"), .18) : surface === "curtain" ? new THREE.Color(color).multiplyScalar(.82) : new THREE.Color(color), [color, surface]);
+  const tint = useMemo(() => surface === "floor" ? new THREE.Color(color).lerp(new THREE.Color("#e8d4b8"), .48) : surface === "wood" ? new THREE.Color("#dbc9b4") : surface === "plaster" ? new THREE.Color(color) : surface === "fabric" ? new THREE.Color(color).lerp(new THREE.Color("#ffffff"), .18) : surface === "curtain" ? new THREE.Color(color).multiplyScalar(.82) : new THREE.Color(color), [color, surface]);
   const pbr = surface === "floor" ? painted?.floor : surface === "wood" ? painted?.wood : surface === "plaster" ? painted?.plaster : surface === "curtain" ? painted?.curtain : undefined;
-  const colorMap = surface === "floor" || surface === "wood" ? painted?.stylizedWood ?? maps.map : surface === "plaster" ? maps.map : surface === "curtain" ? maps.map : surface === "fabric" ? painted?.fabric ?? maps.map : maps.map;
+  const colorMap = surface === "floor" ? painted?.floor.color ?? maps.map : surface === "wood" ? painted?.stylizedWood ?? maps.map : surface === "plaster" ? maps.map : surface === "curtain" ? maps.map : surface === "fabric" ? painted?.fabric ?? maps.map : maps.map;
   const stylizeShader = useMemo(() => (shader: THREE.WebGLProgramParametersWithUniforms) => {
     shader.vertexShader = `varying vec3 vStylizedWorldPosition; varying vec3 vStylizedWorldNormal;\n${shader.vertexShader}`;
     shader.vertexShader = shader.vertexShader.replace(
@@ -153,14 +153,17 @@ function StylizedMaterial({ color, surface = "paint" }: { color: string; surface
       `float stylizedUp = smoothstep(-0.35, 0.92, vStylizedWorldNormal.y);\n      float stylizedHeight = smoothstep(-1.0, 5.5, vStylizedWorldPosition.y);\n      float windowFacing = smoothstep(-0.75, 0.65, -vStylizedWorldNormal.z);\n      float formShade = mix(0.88, 1.07, stylizedUp);\n      vec3 paintedGrade = mix(vec3(1.035, 0.95, 0.88), vec3(1.045, 1.01, 0.95), stylizedUp * 0.62 + stylizedHeight * 0.08);\n      outgoingLight *= paintedGrade * formShade;\n      vec3 warmBounce = diffuseColor.rgb * vec3(0.065, 0.04, 0.022) * (0.45 + (1.0 - stylizedUp) * 0.42);\n      vec3 sunriseEdge = diffuseColor.rgb * vec3(0.05, 0.025, 0.01) * windowFacing;\n      outgoingLight += warmBounce + sunriseEdge;\n      #include <opaque_fragment>`,
     );
   }, []);
-  return <meshStandardMaterial color={tint} map={colorMap} normalMap={surface === "floor" ? undefined : pbr?.normal} normalScale={pbr ? new THREE.Vector2(surface === "wood" ? .12 : .07) : undefined} roughnessMap={surface === "floor" ? undefined : pbr?.roughness} bumpMap={surface === "floor" ? painted?.stylizedWood : pbr ? undefined : maps.bump} bumpScale={surface === "floor" ? .008 : bumpScale} roughness={roughness} metalness={0} envMapIntensity={surface === "floor" ? .16 : .3} onBeforeCompile={stylizeShader} customProgramCacheKey={() => `cozy-painted-pbr-v5-${surface}`} />;
+  // Fabric gets a soft velvet sheen and wood a thin satin finish; both read far more tactile under the low sun.
+  const soft = surface === "fabric" || surface === "curtain";
+  const sheenColor = useMemo(() => new THREE.Color(color).lerp(new THREE.Color("#fff1dc"), .55), [color]);
+  return <meshPhysicalMaterial sheen={soft ? .85 : 0} sheenRoughness={.72} sheenColor={sheenColor} clearcoat={surface === "wood" ? .22 : 0} clearcoatRoughness={.42} color={tint} map={colorMap} normalMap={surface === "floor" ? undefined : pbr?.normal} normalScale={pbr ? new THREE.Vector2(surface === "wood" ? .12 : .07) : undefined} roughnessMap={surface === "floor" ? undefined : pbr?.roughness} bumpMap={surface === "floor" ? painted?.stylizedWood : pbr ? undefined : maps.bump} bumpScale={surface === "floor" ? .008 : bumpScale} roughness={roughness} metalness={0} envMapIntensity={surface === "floor" ? .16 : .3} onBeforeCompile={stylizeShader} customProgramCacheKey={() => `cozy-painted-pbr-v6-${surface}`} />;
 }
 
 function Box({ position, scale, color, rotation = [0, 0, 0], radius = 0.06, surface }: { position: V3; scale: V3; color: string; rotation?: V3; radius?: number; surface?: Surface }) {
   const woodColors = [P.wood, "#a9683e", "#9a6d49", "#b57b4e", "#744829", "#74492f", "#825437", "#7c492f", "#a9764d"];
   const paperColors = [P.cream, "#eadcbf", "#e8d9b9", "#d8ceb3", "#e4d5b5", "#e4d6b8", "#dbc79f", "#d8c39a", "#e7d1ad", "#ead8b8"];
   const resolvedSurface = surface ?? (woodColors.includes(color) ? "wood" : color === P.plaster ? "plaster" : paperColors.includes(color) ? "paper" : "paint");
-  return <RoundedBox castShadow receiveShadow position={position} rotation={rotation} args={scale} radius={Math.min(radius, Math.min(...scale) * .45)} smoothness={3}><StylizedMaterial color={color} surface={resolvedSurface} /></RoundedBox>;
+  return <RoundedBox castShadow receiveShadow position={position} rotation={rotation} args={scale} radius={Math.min(radius, Math.min(...scale) * .45)} smoothness={4}><StylizedMaterial color={color} surface={resolvedSurface} /></RoundedBox>;
 }
 
 const woodFurniture = new Set<FurnitureAssetName>(["cabinet_medium", "cabinet_small", "shelf_A_big", "shelf_A_small", "shelf_B_large_decorated", "shelf_B_small_decorated", "table_medium_long", "table_low", "table_small"]);
@@ -192,7 +195,14 @@ function FurnitureAsset({ name, position, rotation = [0,0,0], scale = [1,1,1], t
         child.geometry.computeVertexNormals();
         child.geometry.computeBoundingSphere();
       }
-      const material = (child.material as THREE.MeshStandardMaterial).clone();
+      const source = child.material as THREE.MeshStandardMaterial;
+      // Upholstery gets a velvet sheen and wooden pieces a satin coat, matching the procedural surfaces.
+      const material = new THREE.MeshPhysicalMaterial({
+        map: source.map, color: source.color, normalMap: source.normalMap, vertexColors: source.vertexColors,
+        sheen: detailKind === "fabric" ? .8 : 0, sheenRoughness: .7, sheenColor: new THREE.Color(tint ?? "#ffffff").lerp(new THREE.Color("#fff1dc"), .6),
+        clearcoat: detailKind === "wood" ? .2 : 0, clearcoatRoughness: .45,
+      });
+      material.name = source.name;
       child.material = material;
       if (tint) {
         const original = material.color.clone();
@@ -217,7 +227,7 @@ function FurnitureAsset({ name, position, rotation = [0,0,0], scale = [1,1,1], t
           vec3 p = vKitWorldPosition * ${detailKind === "wood" ? "vec3(.24, .85, .7)" : "vec3(2.8)"};
           vec3 kitDetail = texture2D(kitDetailMap, p.yz).rgb * kitWeights.x + texture2D(kitDetailMap, p.xz).rgb * kitWeights.y + texture2D(kitDetailMap, p.xy).rgb * kitWeights.z;
           float kitGrain = dot(kitDetail, vec3(.299, .587, .114));
-          ${solidWood ? "diffuseColor.rgb = kitDetail * vec3(.93, 1.02, 1.1);" : "diffuseColor.rgb *= mix(.8, 1.18, smoothstep(.08, .48, kitGrain));"}` : "";
+          ${solidWood ? "float kitLumaWood = dot(kitDetail, vec3(.299,.587,.114)); diffuseColor.rgb = mix(vec3(kitLumaWood), kitDetail, .72) * vec3(1.02, .95, .86);" : "diffuseColor.rgb *= mix(.8, 1.18, smoothstep(.08, .48, kitGrain));"}` : "";
         const tintShader = tint ? `float kitLuma = dot(diffuseColor.rgb, vec3(.299,.587,.114));
           float upholstery = smoothstep(.13,.3,kitLuma);
           diffuseColor.rgb = mix(diffuseColor.rgb, kitTint * (.62 + kitLuma * .68), upholstery * .83);` : "";
@@ -227,7 +237,7 @@ function FurnitureAsset({ name, position, rotation = [0,0,0], scale = [1,1,1], t
           `#include <map_fragment>\n${detailShader}\n${tintShader}`,
         );
       };
-      material.customProgramCacheKey = () => `kit-furniture-form-v3-${name}-${tint ? "tinted" : "base"}`;
+      material.customProgramCacheKey = () => `kit-furniture-form-v5-${name}-${tint ? "tinted" : "base"}`;
     });
     return clone;
   }, [detailKind, detailMap, scene, tint]);
@@ -268,7 +278,7 @@ function Hotspot({ name, position, children, active, onFocus }: { name: Exclude<
   const group = useRef<THREE.Group>(null);
   const subject = useRef<THREE.Group>(null);
   const auraLight = useRef<THREE.PointLight>(null);
-  const selection = useRef({ progress: 0, charge: 0, twist: 0, bank: 0, light: 0, hover: 0 });
+  const selection = useRef({ progress: 0, charge: 0, twist: 0, bank: 0, light: 0, hover: 0, hoverVelocity: 0 });
   const reducedMotion = useReducedMotionRef();
   const [reduceEffects, setReduceEffects] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -310,15 +320,20 @@ function Hotspot({ name, position, children, active, onFocus }: { name: Exclude<
     // Bring each desk object to the same world-space stage, keeping the camera frontal.
     const stage: V3 = name === "projects" ? [.961, 1.18, .3] : name === "about" ? [-.959, 1.4, -.2] : name === "contact" ? [-1.87, 1.6, -.1] : [0, .12, 0];
     const monitor = name === "skills";
-    motion.hover = THREE.MathUtils.damp(motion.hover, hovered && !active ? 1 : 0, 10, delta);
+    // Under-damped spring: the object pops up with a small overshoot and settles, instead of easing linearly.
+    const hoverTarget = hovered && !active ? 1 : 0;
+    const dt = Math.min(delta, 1 / 30);
+    motion.hoverVelocity += ((hoverTarget - motion.hover) * 190 - motion.hoverVelocity * 15) * dt;
+    motion.hover += motion.hoverVelocity * dt;
+    if (reducedMotion.current) { motion.hover = THREE.MathUtils.damp(motion.hover, hoverTarget, 10, delta); motion.hoverVelocity = 0; }
     group.current.position.x = stage[0] * progress;
     group.current.position.y = stage[1] * progress + (monitor ? 0 : floatWave * .045 - motion.charge * .06) + motion.hover * .045;
     group.current.position.z = stage[2] * progress;
     subject.current.scale.setScalar(monitor ? 1 : 1 + progress * .08 + motion.hover * .018 - motion.charge * .025);
-    subject.current.rotation.x = monitor ? 0 : (name === "contact" ? .68 : name === "about" ? .42 : .12) * progress;
+    subject.current.rotation.x = monitor ? 0 : (name === "contact" ? .68 : name === "about" ? .42 : .12) * progress + motion.hover * .07;
     subject.current.rotation.y = monitor ? 0 : motion.twist + (reducedMotion.current ? 0 : Math.sin(clock.elapsedTime * .52) * .025 * progress);
     subject.current.rotation.z = monitor ? 0 : motion.bank + floatWave * .015;
-    if (auraLight.current) auraLight.current.intensity = motion.light * (monitor ? .5 : 2.6);
+    if (auraLight.current) auraLight.current.intensity = motion.light * (monitor ? .5 : 2.6) + Math.max(motion.hover, 0) * .9;
   });
   const stop = (event: ThreeEvent<PointerEvent | MouseEvent>) => event.stopPropagation();
   const auraY = name === "skills" ? .82 : name === "projects" ? .42 : .08;
@@ -336,37 +351,200 @@ function Plant({ position, scale = 1 }: { position: V3; scale?: number }) {
   return <StudioPlant position={position} scale={scale} gust={gust}/>;
 }
 
+const dustVertex = `
+attribute vec4 seed;
+uniform float time;
+uniform float pixelRatio;
+varying float vGlow;
+void main() {
+  // Each mote wanders on its own slow Lissajous path instead of the cloud moving as one block.
+  vec3 p = position;
+  p.x += sin(time * (.11 + seed.x * .09) + seed.y * 6.283) * .22;
+  p.y += sin(time * (.07 + seed.z * .06) + seed.x * 6.283) * .16 + mod(time * (.012 + seed.w * .01) + seed.y, 1.0) * .25;
+  p.z += cos(time * (.09 + seed.w * .08) + seed.z * 6.283) * .2;
+  vec4 mv = modelViewMatrix * vec4(p, 1.0);
+  gl_Position = projectionMatrix * mv;
+  // Motes glint as they turn, like real dust catching low sun.
+  vGlow = .35 + .65 * pow(.5 + .5 * sin(time * (.8 + seed.x * 1.6) + seed.w * 40.0), 3.0);
+  gl_PointSize = (2.2 + seed.z * 2.6) * pixelRatio * (9.0 / -mv.z);
+}`;
+
+const dustFragment = `
+uniform vec3 color;
+uniform float opacity;
+varying float vGlow;
+void main() {
+  float d = length(gl_PointCoord - .5) * 2.0;
+  float soft = smoothstep(1.0, 0.0, d);
+  gl_FragColor = vec4(color * soft * soft * vGlow * opacity, 1.0);
+}`;
+
 function WarmDust() {
-  const points = useRef<THREE.Points>(null);
-  const reducedMotion = useRef(false);
-  const positions = useMemo(() => {
-    const values = new Float32Array(126);
-    for (let i = 0; i < 42; i++) {
-      values[i * 3] = ((i * 37) % 100) / 10 - 5;
-      values[i * 3 + 1] = .55 + ((i * 53) % 38) / 10;
-      values[i * 3 + 2] = ((i * 29) % 70) / 10 - 3.7;
+  const material = useRef<THREE.ShaderMaterial>(null);
+  const reducedMotion = useReducedMotionRef();
+  const count = 140;
+  const { positions, seeds } = useMemo(() => {
+    const positions = new Float32Array(count * 3);
+    const seeds = new Float32Array(count * 4);
+    const rand = (n: number) => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
+    for (let i = 0; i < count; i++) {
+      // Weight the motes toward the sunlit band between the balcony door and the desk.
+      const inBeam = i % 3 !== 0;
+      positions[i * 3] = inBeam ? -2 + rand(i) * 4.5 : -5.5 + rand(i) * 11;
+      positions[i * 3 + 1] = .5 + rand(i + 1000) * 4.4;
+      positions[i * 3 + 2] = inBeam ? -4 + rand(i + 2000) * 5.5 : -4 + rand(i + 2000) * 7.5;
+      seeds.set([rand(i + 3000), rand(i + 4000), rand(i + 5000), rand(i + 6000)], i * 4);
     }
-    return values;
+    return { positions, seeds };
   }, []);
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const update = () => { reducedMotion.current = media.matches; };
-    update(); media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
-  useFrame(({ clock }) => {
-    if (!points.current || reducedMotion.current) return;
-    points.current.rotation.y = Math.sin(clock.elapsedTime * .08) * .035;
-    points.current.position.y = Math.sin(clock.elapsedTime * .18) * .05;
+  const uniforms = useMemo(() => ({ time: { value: 0 }, pixelRatio: { value: 1 }, color: { value: new THREE.Color("#ffb878") }, opacity: { value: .7 } }), []);
+  useFrame(({ clock, gl }) => {
+    if (!material.current) return;
+    material.current.uniforms.pixelRatio.value = gl.getPixelRatio();
+    if (!reducedMotion.current) material.current.uniforms.time.value = clock.elapsedTime;
   });
-  return <points ref={points}><bufferGeometry><bufferAttribute attach="attributes-position" args={[positions, 3]} /></bufferGeometry><pointsMaterial color="#ffe2a6" size={.028} transparent opacity={.36} sizeAttenuation depthWrite={false} /></points>;
+  return <points frustumCulled={false}>
+    <bufferGeometry><bufferAttribute attach="attributes-position" args={[positions, 3]} /><bufferAttribute attach="attributes-seed" args={[seeds, 4]} /></bufferGeometry>
+    <shaderMaterial ref={material} uniforms={uniforms} vertexShader={dustVertex} fragmentShader={dustFragment} transparent depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false}/>
+  </points>;
+}
+
+function StringLights() {
+  const bulbs = useRef<THREE.InstancedMesh>(null);
+  const reducedMotion = useReducedMotionRef();
+  const { wire, points } = useMemo(() => {
+    const anchors = [-5.55, -1.85, 1.85, 5.55];
+    const curvePoints: THREE.Vector3[] = [];
+    const bulbPoints: THREE.Vector3[] = [];
+    for (let swag = 0; swag < anchors.length - 1; swag++) {
+      const from = anchors[swag], to = anchors[swag + 1];
+      for (let step = 0; step <= 24; step++) {
+        const t = step / 24;
+        if (swag > 0 && step === 0) continue;
+        curvePoints.push(new THREE.Vector3(THREE.MathUtils.lerp(from, to, t), 5.52 - Math.sin(t * Math.PI) * .46, -3.96 + Math.sin(t * Math.PI) * .08));
+      }
+      for (let bulb = 1; bulb < 12; bulb++) {
+        const t = bulb / 12;
+        bulbPoints.push(new THREE.Vector3(THREE.MathUtils.lerp(from, to, t), 5.52 - Math.sin(t * Math.PI) * .46 - .075, -3.96 + Math.sin(t * Math.PI) * .08));
+      }
+    }
+    const curve = new THREE.CatmullRomCurve3(curvePoints);
+    return { wire: new THREE.TubeGeometry(curve, 180, .008, 5, false), points: bulbPoints };
+  }, []);
+  useEffect(() => () => wire.dispose(), [wire]);
+  useEffect(() => {
+    const mesh = bulbs.current;
+    if (!mesh) return;
+    const matrix = new THREE.Matrix4();
+    points.forEach((point, index) => { mesh.setMatrixAt(index, matrix.makeTranslation(point.x, point.y, point.z)); });
+    mesh.instanceMatrix.needsUpdate = true;
+  }, [points]);
+  const swing = useRef<THREE.Group>(null);
+  const windGust = useContext(WindGustContext);
+  const gustStartedAt = useRef(-99);
+  useEffect(() => { if (windGust > 0) gustStartedAt.current = performance.now() / 1000; }, [windGust]);
+  const glow = useMemo(() => new THREE.Color(), []);
+  const base = useMemo(() => new THREE.Color("#ffb35c").multiplyScalar(3.4), []);
+  useLayoutEffect(() => {
+    const mesh = bulbs.current;
+    if (!mesh) return;
+    points.forEach((_, index) => mesh.setColorAt(index, base));
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    (mesh.material as THREE.Material).needsUpdate = true;
+  }, [points, base]);
+  useFrame(({ clock }) => {
+    const mesh = bulbs.current;
+    if (!mesh || reducedMotion.current) return;
+    const t = clock.elapsedTime;
+    // Each bulb breathes on its own phase, with a slow wave travelling along the strand and a rare filament flicker.
+    points.forEach((_, index) => {
+      const wave = .5 + .5 * Math.sin(t * 1.1 - index * .45);
+      const own = Math.sin(t * (1.7 + (index % 5) * .23) + index * 2.1);
+      const flicker = Math.sin(t * 23 + index * 7.3) > .985 ? .55 : 1;
+      mesh.setColorAt(index, glow.copy(base).multiplyScalar((.78 + wave * .28 + own * .08) * flicker));
+    });
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    if (swing.current) swing.current.rotation.x = Math.sin(t * .7) * .012 + Math.sin(t * 1.9) * windEnvelope(performance.now() / 1000 - gustStartedAt.current) * .035;
+  });
+  return <group ref={swing} position={[0,5.5,-3.96]}><group position={[0,-5.5,3.96]}>
+    <mesh geometry={wire}><meshStandardMaterial color="#3a2a1f" roughness={.8}/></mesh>
+    <instancedMesh ref={bulbs} args={[undefined, undefined, points.length]} frustumCulled={false}>
+      <sphereGeometry args={[.05, 14, 10]}/>
+      <meshBasicMaterial color="#ffffff" toneMapped={false}/>
+    </instancedMesh>
+  </group></group>;
+}
+
+const fireflyVertex = `
+attribute vec4 seed;
+uniform float time;
+uniform float pixelRatio;
+varying float vBlink;
+void main() {
+  vec3 p = position;
+  float t = time * (.35 + seed.x * .25);
+  // Lazy figure-eight wander with a slow bob, every firefly on its own clock.
+  p.x += sin(t + seed.y * 6.283) * .45 + sin(t * 2.3 + seed.z * 9.0) * .08;
+  p.y += sin(t * .7 + seed.w * 6.283) * .3;
+  p.z += sin(t * 1.3 + seed.x * 6.283) * .35;
+  vec4 mv = modelViewMatrix * vec4(p, 1.0);
+  gl_Position = projectionMatrix * mv;
+  // Long dark pauses broken by soft pulses, like real fireflies at dusk.
+  float pulse = sin(time * (.9 + seed.z * .8) + seed.y * 40.0);
+  vBlink = smoothstep(.35, 1.0, pulse);
+  gl_PointSize = (5.0 + seed.w * 5.0) * pixelRatio * (8.0 / -mv.z) * (.55 + .45 * vBlink);
+}`;
+
+const fireflyFragment = `
+uniform float intensity;
+varying float vBlink;
+void main() {
+  float d = length(gl_PointCoord - .5) * 2.0;
+  float core = smoothstep(.35, 0.0, d);
+  float halo = smoothstep(1.0, 0.0, d);
+  vec3 c = vec3(1.0, .86, .42) * (core * 3.2 + halo * halo * .7) * vBlink * intensity;
+  gl_FragColor = vec4(c, 1.0);
+}`;
+
+/** Fireflies drifting along the open edges of the pavilion and the plants as the sun goes down. */
+function Fireflies() {
+  const material = useRef<THREE.ShaderMaterial>(null);
+  const reducedMotion = useReducedMotionRef();
+  const theatre = useContext(ProjectTheatreContext);
+  const count = 44;
+  const { positions, seeds } = useMemo(() => {
+    const positions = new Float32Array(count * 3);
+    const seeds = new Float32Array(count * 4);
+    const rand = (n: number) => { const v = Math.sin(n * 91.7 + 17.3) * 43758.5453; return v - Math.floor(v); };
+    for (let i = 0; i < count; i++) {
+      const zone = i % 4;
+      // Left and right open sides, the railing beyond the desk, and a few around the lounge plants.
+      const x = zone === 0 ? -6.6 + rand(i) * 1.8 : zone === 1 ? 4.8 + rand(i) * 1.8 : -5 + rand(i) * 10;
+      const z = zone === 2 ? -4.8 + rand(i + 50) * .9 : -3.8 + rand(i + 50) * 7;
+      positions.set([x, .45 + rand(i + 100) * (zone === 2 ? 2.6 : 3.2), z], i * 3);
+      seeds.set([rand(i + 200), rand(i + 300), rand(i + 400), rand(i + 500)], i * 4);
+    }
+    return { positions, seeds };
+  }, []);
+  const uniforms = useMemo(() => ({ time: { value: 0 }, pixelRatio: { value: 1 }, intensity: { value: 1 } }), []);
+  useFrame(({ clock, gl }, delta) => {
+    if (!material.current) return;
+    const u = material.current.uniforms;
+    u.pixelRatio.value = gl.getPixelRatio();
+    if (!reducedMotion.current) u.time.value = clock.elapsedTime;
+    u.intensity.value = THREE.MathUtils.damp(u.intensity.value, theatre ? .2 : 1, 2, delta);
+  });
+  return <points frustumCulled={false}>
+    <bufferGeometry><bufferAttribute attach="attributes-position" args={[positions, 3]} /><bufferAttribute attach="attributes-seed" args={[seeds, 4]} /></bufferGeometry>
+    <shaderMaterial ref={material} uniforms={uniforms} vertexShader={fireflyVertex} fragmentShader={fireflyFragment} transparent depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false}/>
+  </points>;
 }
 
 function FloorBoards() {
-  const boardColors = ["#b58355", "#ab784e", "#bd8b5b", "#ae8057"];
+  const boardColors = ["#a8875f", "#9e7d58", "#b08f68", "#a2815c"];
   return <group>
-    {Array.from({length:14}).map((_, row) => {
-      const z = -4.4 + row * .66;
+    {Array.from({length:16}).map((_, row) => {
+      const z = -5.72 + row * .66;
       return Array.from({length:4}).map((_, column) =>
         <Box key={`plank-${row}-${column}`} position={[-4.575 + column * 3.05,.028,z]} scale={[3.025,.14,.644]} color={boardColors[(row + column * 3) % 4]} radius={.012} surface="floor"/>
       );
@@ -374,6 +552,7 @@ function FloorBoards() {
   </group>;
 }
 
+/** Wall, ceiling and window shell that turns the open pavilion into the cozy room of the reference. */
 function Architecture() {
   const posts: V3[] = [[-5.82,2.85,-4.18],[5.82,2.85,-4.18],[-5.82,2.85,3.78],[5.82,2.85,3.78]];
   return <group>
@@ -389,7 +568,7 @@ function Architecture() {
     {[-3.7,-2.45,-1.2,.05,1.3,2.55,3.7].map((z,index)=><Box key={z} position={[0,5.8,z]} scale={[11.75,.13,.28]} color={index%2?"#b27346":"#9f643e"} radius={.035} surface="wood"/>)}
     <Box position={[4.48,2.72,-4.3]} scale={[2.65,5.25,.22]} color={P.plaster} radius={.08} surface="plaster"/>
     <Box position={[-5.15,2.55,-4.28]} scale={[1.15,4.75,.2]} color={P.plaster} radius={.08} surface="plaster"/>
-    <Box position={[0,.32,-4.1]} scale={[11.5,.2,.22]} color="#875235" radius={.04} surface="wood"/>
+    <Box position={[0,.32,-4.1]} scale={[11.5,.2,.22]} color="#6e4029" radius={.04}/>
   </group>;
 }
 
@@ -453,7 +632,7 @@ function LandscapeDepth() {
 }
 
 function ExteriorPine({ position, scale = 1, color = "#365d42" }: { position: V3; scale?: number; color?: string }) {
-  return <group position={position} scale={scale}><mesh position={[0,-.18,0]}><cylinderGeometry args={[.07,.09,.72,8]}/><meshStandardMaterial color="#68472e" roughness={1}/></mesh>{[0,.32,.62].map((y,index)=><mesh key={y} position={[0,y,0]}><coneGeometry args={[.5-index*.08,.78,9]}/><meshStandardMaterial color={index===1?"#456b47":color} roughness={1}/></mesh>)}</group>;
+  return <group position={position} scale={scale}><mesh position={[0,-.18,0]}><cylinderGeometry args={[.07,.09,.72,12]}/><meshStandardMaterial color="#68472e" roughness={1}/></mesh>{[0,.32,.62].map((y,index)=><mesh key={y} position={[0,y,0]}><coneGeometry args={[.5-index*.08,.78,14]}/><meshStandardMaterial color={index===1?"#456b47":color} roughness={1}/></mesh>)}</group>;
 }
 
 function ExteriorRock({ position, scale = 1, color = "#8f674e" }: { position: V3; scale?: number; color?: string }) {
@@ -492,13 +671,83 @@ function AnimatedExterior() {
     <group position={[1.98,1.34,-.02]}><ExteriorRock position={[-.34,.03,.04]} scale={.94} color="#856650"/><ExteriorRock position={[.08,.11,.02]} scale={1.12} color="#9d704f"/><ExteriorRock position={[.46,.01,0]} scale={1.24}/><ExteriorPine position={[-.18,.38,.05]} scale={.36} color="#627c58"/><ExteriorPine position={[.32,.44,.04]} scale={.48} color="#4e704d"/></group>
     <group position={[0,0,.02]}><ExteriorPine position={[-.68,1.82,0]} scale={.25} color="#718967"/><ExteriorPine position={[-.38,1.88,0]} scale={.18} color="#78906d"/><ExteriorPine position={[.42,1.9,0]} scale={.19} color="#708966"/><ExteriorPine position={[.72,1.82,0]} scale={.25} color="#65805f"/></group>
     <group ref={pines} position={[0,0,.12]}><ExteriorPine position={[-2.68,2.02,0]} scale={1.15}/><ExteriorPine position={[-2.12,1.76,.04]} scale={.82} color="#4c714c"/><ExteriorPine position={[-1.58,1.58,.08]} scale={.58} color="#5a7a55"/><ExteriorPine position={[-.98,1.72,.04]} scale={.46} color="#617e5b"/><ExteriorPine position={[1.02,1.72,.04]} scale={.48} color="#5d7d59"/><ExteriorPine position={[1.62,1.62,.08]} scale={.62} color="#557750"/><ExteriorPine position={[2.15,1.82,.04]} scale={.86} color="#426849"/><ExteriorPine position={[2.7,2.08,0]} scale={1.18}/></group>
-    <group position={[-2.1,1.18,.2]}>{[-.38,-.1,.18,.46].map((x,i)=><mesh key={x} position={[x,(i%2)*.08,0]} scale={[1.2,.68,.9]}><sphereGeometry args={[.31,10,8]}/><meshStandardMaterial color={i%2?"#708052":"#61714b"} roughness={1}/></mesh>)}</group>
-    <group position={[2.15,1.2,.2]}>{[-.38,-.1,.18,.46].map((x,i)=><mesh key={x} position={[x,(i%2)*.08,0]} scale={[1.2,.68,.9]}><sphereGeometry args={[.31,10,8]}/><meshStandardMaterial color={i%2?"#6c7c50":"#5d714c"} roughness={1}/></mesh>)}</group>
+    <group position={[-2.1,1.18,.2]}>{[-.38,-.1,.18,.46].map((x,i)=><mesh key={x} position={[x,(i%2)*.08,0]} scale={[1.2,.68,.9]}><sphereGeometry args={[.31,20,14]}/><meshStandardMaterial color={i%2?"#708052":"#61714b"} roughness={1}/></mesh>)}</group>
+    <group position={[2.15,1.2,.2]}>{[-.38,-.1,.18,.46].map((x,i)=><mesh key={x} position={[x,(i%2)*.08,0]} scale={[1.2,.68,.9]}><sphereGeometry args={[.31,20,14]}/><meshStandardMaterial color={i%2?"#6c7c50":"#5d714c"} roughness={1}/></mesh>)}</group>
     <Box position={[0,1.05,.9]} scale={[11.25,.16,.18]} color={P.dark}/>{[-5,-3.35,-1.68,0,1.68,3.35,5].map(x=><Box key={x} position={[x,.65,.9]} scale={[.14,.95,.14]} color={P.dark}/>) }
   </group>;
 }
 
-function CinematicExteriorBackdrop() {
+// The painted panorama, regraded into a late sunset: ember midtones, a rose-violet upper sky, dusky
+// purple shade on the hills, a dark violet lake, an HDR sun on an ember horizon and a glittering sun lane.
+const panoramaFragment = `
+uniform sampler2D map;
+uniform vec2 texelSize;
+uniform float time;
+uniform float motionStrength;
+varying vec2 vUv;
+const vec2 SUN = vec2(.5, .612);
+void main() {
+  vec2 sampleUv = vUv;
+  float edge = smoothstep(.2, .44, abs(vUv.x - .5));
+  float canopy = edge * smoothstep(.18, .9, vUv.y);
+  float wind = (sin(time * .72 + vUv.y * 10.5 + vUv.x * 6.0) + sin(time * .41 + vUv.y * 18.0) * .38) * .0022;
+  sampleUv.x += wind * canopy * motionStrength;
+  float outerSky = smoothstep(.13, .38, abs(vUv.x - .5)) * smoothstep(.68, .9, vUv.y);
+  sampleUv.x += sin(time * .075 + vUv.y * 3.0) * .0012 * outerSky * motionStrength;
+  float waterCenter = (1.0 - smoothstep(.12, .42, abs(vUv.x - .5))) * (1.0 - smoothstep(.5, .68, vUv.y)) * smoothstep(.03, .28, vUv.y);
+  sampleUv.y += sin(vUv.x * 62.0 + time * .55) * .00125 * waterCenter * motionStrength;
+  sampleUv.x += sin(vUv.y * 76.0 - time * .32) * .0008 * waterCenter * motionStrength;
+  sampleUv = clamp(sampleUv, vec2(.002), vec2(.998));
+  vec3 center = texture2D(map, sampleUv).rgb;
+  vec3 neighborhood = (texture2D(map, sampleUv + vec2(texelSize.x, 0.0)).rgb + texture2D(map, sampleUv - vec2(texelSize.x, 0.0)).rgb + texture2D(map, sampleUv + vec2(0.0, texelSize.y)).rgb + texture2D(map, sampleUv - vec2(0.0, texelSize.y)).rgb) * .25;
+  float detailMask = 1.0 - smoothstep(.76, .98, vUv.y);
+  vec3 color = clamp(center + (center - neighborhood) * .24 * detailMask, 0.0, 1.0);
+
+  float luma = dot(color, vec3(.2126, .7152, .0722));
+  float sky = smoothstep(.52, .6, vUv.y);
+  float top = smoothstep(.62, 1.0, vUv.y);
+  float lake = smoothstep(.0, .07, center.b - center.r);
+  color *= vec3(1.1, .84, .7);
+  // The lake holds the deep blue-violet of the darkening sky, so the sun lane glitters against dark water.
+  color = mix(color, vec3(.17, .21, .4) * (.5 + luma * .9), lake * .82);
+  color = mix(color, color * vec3(1.0, .6, .96) + vec3(.045, 0.0, .07), top * .75);
+  float shade = (1.0 - smoothstep(.04, .42, luma)) * (1.0 - sky);
+  color = mix(color, color * vec3(.74, .66, 1.08), shade * .6);
+
+  vec2 d = (vUv - SUN) * vec2(1.778, 1.0);
+  float r = length(d);
+  // Away from the sun the evening falls off fast: hills and outer pines sink into dusky violet silhouettes.
+  float periphery = smoothstep(.07, .52, r);
+  color = mix(color, color * vec3(.58, .48, .8), periphery * .7);
+  // A saturated ember band on the horizon gives the sun something to burn against.
+  float horizon = exp(-pow((vUv.y - .55) / .035, 2.0));
+  color = mix(color, color * vec3(1.05, .5, .38), horizon * .45 * (1.0 - smoothstep(.0, .12, r)) + horizon * .25 * smoothstep(.1, .4, r));
+  float breathe = 1.0 + .07 * sin(time * .33) * motionStrength;
+  float halo = exp(-r * 16.0) * 1.1 + exp(-r * 5.0) * .16;
+  color += vec3(1.0, .52, .24) * halo * breathe;
+  color = mix(color, vec3(5.0, 4.4, 3.4) * breathe, smoothstep(.044, .03, r));
+
+
+  float water = lake * (1.0 - smoothstep(.535, .55, vUv.y));
+  float laneWidth = .018 + max(SUN.y - vUv.y, 0.0) * .22;
+  float lane = exp(-pow((vUv.x - .5 + sin(vUv.y * 40.0 + time * .4) * .004) / laneWidth, 2.0));
+  vec2 cell = floor(vUv * vec2(340.0, 820.0));
+  float seed = fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);
+  float twinkle = step(.72, seed) * pow(.5 + .5 * sin(time * (2.0 + seed * 3.0) * motionStrength + seed * 60.0), 10.0);
+  color += water * lane * (vec3(.75, .42, .2) * .7 + vec3(3.0, 1.9, 1.0) * twinkle);
+
+  gl_FragColor = vec4(color * .92, 1.0);
+}`;
+
+const sunGlowFragment = `
+varying vec2 vUv;
+void main() {
+  float r = length(vUv - .5) * 2.0;
+  float a = smoothstep(1.0, .25, r);
+  gl_FragColor = vec4(vec3(1.5, .92, .5) * a * a, 1.0);
+}`;
+
+function CinematicExteriorBackdrop({ onSunMesh }: { onSunMesh?: (mesh: THREE.Mesh | null) => void }) {
   const panoramaSource = useTexture(asset("/textures/exterior-sunrise-v2.png"));
   const panorama = useMemo(() => {
     const texture = panoramaSource.clone();
@@ -567,11 +816,13 @@ function CinematicExteriorBackdrop() {
           toneMapped={false}
           uniforms={{ map: { value: panorama }, texelSize: { value: panoramaTexel }, time: { value: 0 }, motionStrength: { value: 1 } }}
           vertexShader={`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`}
-          fragmentShader={`uniform sampler2D map;uniform vec2 texelSize;uniform float time;uniform float motionStrength;varying vec2 vUv;void main(){vec2 sampleUv=vUv;float edge=smoothstep(.2,.44,abs(vUv.x-.5));float canopy=edge*smoothstep(.18,.9,vUv.y);float wind=(sin(time*.72+vUv.y*10.5+vUv.x*6.0)+sin(time*.41+vUv.y*18.0)*.38)*.0022;sampleUv.x+=wind*canopy*motionStrength;float outerSky=smoothstep(.13,.38,abs(vUv.x-.5))*smoothstep(.68,.9,vUv.y);sampleUv.x+=sin(time*.075+vUv.y*3.0)*.0012*outerSky*motionStrength;float waterCenter=(1.0-smoothstep(.12,.42,abs(vUv.x-.5)))*(1.0-smoothstep(.5,.68,vUv.y))*smoothstep(.03,.28,vUv.y);sampleUv.y+=sin(vUv.x*62.0+time*.55)*.00125*waterCenter*motionStrength;sampleUv.x+=sin(vUv.y*76.0-time*.32)*.0008*waterCenter*motionStrength;sampleUv=clamp(sampleUv,vec2(.002),vec2(.998));vec3 center=texture2D(map,sampleUv).rgb;vec3 neighborhood=(texture2D(map,sampleUv+vec2(texelSize.x,0.0)).rgb+texture2D(map,sampleUv-vec2(texelSize.x,0.0)).rgb+texture2D(map,sampleUv+vec2(0.0,texelSize.y)).rgb+texture2D(map,sampleUv-vec2(0.0,texelSize.y)).rgb)*.25;float detailMask=1.0-smoothstep(.76,.98,vUv.y);vec3 sharpened=clamp(center+(center-neighborhood)*.24*detailMask,0.0,1.0);gl_FragColor=vec4(sharpened,1.0);
-#include <tonemapping_fragment>
-#include <colorspace_fragment>
-}`}
+          fragmentShader={panoramaFragment}
         />
+      </mesh>
+      {/* Sun disc for the screen-space god rays: props in front of it cast streaks back into the room. */}
+      <mesh ref={onSunMesh} position={[0,4.21,-.7]} renderOrder={2}>
+        <circleGeometry args={[.75,48]}/>
+        <shaderMaterial transparent depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} vertexShader={`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`} fragmentShader={sunGlowFragment}/>
       </mesh>
       <mesh position={[.15,1.55,-.68]}>
         <planeGeometry args={[5.2,2.25]}/>
@@ -580,9 +831,9 @@ function CinematicExteriorBackdrop() {
           transparent
           depthWrite={false}
           toneMapped={false}
-          uniforms={{ time: { value: 0 }, glow: { value: new THREE.Color("#ffe5a7") } }}
+          uniforms={{ time: { value: 0 }, glow: { value: new THREE.Color("#ffb070") } }}
           vertexShader={`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`}
-          fragmentShader={`uniform float time;uniform vec3 glow;varying vec2 vUv;void main(){float taper=1.0-smoothstep(.15,.5,abs(vUv.x-.5));float ripple=sin(vUv.y*74.0+sin(vUv.x*19.0-time*.18)*2.0-time*.72)*.5+.5;float broken=sin(vUv.x*53.0+time*.31)*.5+.5;float line=smoothstep(.86,.99,ripple)*smoothstep(.35,.8,broken);float fade=smoothstep(.02,.3,vUv.y)*(1.0-smoothstep(.72,1.0,vUv.y));gl_FragColor=vec4(glow,line*taper*fade*.22);}`}
+          fragmentShader={`uniform float time;uniform vec3 glow;varying vec2 vUv;void main(){float taper=1.0-smoothstep(.15,.5,abs(vUv.x-.5));float ripple=sin(vUv.y*74.0+sin(vUv.x*19.0-time*.18)*2.0-time*.72)*.5+.5;float broken=sin(vUv.x*53.0+time*.31)*.5+.5;float line=smoothstep(.86,.99,ripple)*smoothstep(.35,.8,broken);float fade=smoothstep(.02,.3,vUv.y)*(1.0-smoothstep(.72,1.0,vUv.y));gl_FragColor=vec4(glow*1.6,line*taper*fade*.3);}`}
         />
       </mesh>
     </group>
@@ -602,18 +853,10 @@ function CinematicExteriorBackdrop() {
 function LandscapeFoliage() {
   const trees: Array<[number,number,number,number,string]> = [[-2.72,2.05,-4.22,1.05,"#365d42"],[-2.18,1.72,-4.18,.78,"#4b714d"],[-1.72,1.55,-4.2,.58,"#587955"],[1.72,1.58,-4.2,.62,"#547851"],[2.18,1.78,-4.18,.82,"#3f6747"],[2.72,2.08,-4.2,1.08,"#355b40"]];
   return <group>
-    {trees.map(([x,y,z,s,color])=><group key={`${x}-${y}`} position={[x,y,z]} scale={s}><Box position={[0,-.5,0]} scale={[.11,1.05,.11]} color="#67452f"/>{[0,.38,.72].map((v,j)=><mesh key={v} castShadow position={[0,v,0]}><coneGeometry args={[.58-j*.07,.9,8]}/><meshStandardMaterial color={j===1?P.green:color} roughness={1}/></mesh>)}</group>)}
-    <group position={[-2.2,.95,-4.08]}>{[-.42,-.12,.18,.48].map((x,i)=><mesh key={x} position={[x,(i%2)*.08,0]} scale={[1.15,.72,.9]}><sphereGeometry args={[.34,10,8]}/><meshStandardMaterial color={i%2?"#6d7651":"#7e6b48"} roughness={1}/></mesh>)}</group>
-    <group position={[2.25,.98,-4.08]}>{[-.4,-.1,.2,.5].map((x,i)=><mesh key={x} position={[x,(i%2)*.07,0]} scale={[1.1,.7,.9]}><sphereGeometry args={[.33,10,8]}/><meshStandardMaterial color={i%2?"#68754e":"#796a48"} roughness={1}/></mesh>)}</group>
+    {trees.map(([x,y,z,s,color])=><group key={`${x}-${y}`} position={[x,y,z]} scale={s}><Box position={[0,-.5,0]} scale={[.11,1.05,.11]} color="#67452f"/>{[0,.38,.72].map((v,j)=><mesh key={v} castShadow position={[0,v,0]}><coneGeometry args={[.58-j*.07,.9,14]}/><meshStandardMaterial color={j===1?P.green:color} roughness={1}/></mesh>)}</group>)}
+    <group position={[-2.2,.95,-4.08]}>{[-.42,-.12,.18,.48].map((x,i)=><mesh key={x} position={[x,(i%2)*.08,0]} scale={[1.15,.72,.9]}><sphereGeometry args={[.34,20,14]}/><meshStandardMaterial color={i%2?"#6d7651":"#7e6b48"} roughness={1}/></mesh>)}</group>
+    <group position={[2.25,.98,-4.08]}>{[-.4,-.1,.2,.5].map((x,i)=><mesh key={x} position={[x,(i%2)*.07,0]} scale={[1.1,.7,.9]}><sphereGeometry args={[.33,20,14]}/><meshStandardMaterial color={i%2?"#68754e":"#796a48"} roughness={1}/></mesh>)}</group>
     {[1.25,1.5,1.72,1.92].map((y,i)=><mesh key={y} position={[0,y,-4.36]}><planeGeometry args={[.62-i*.1,.045]}/><meshBasicMaterial color="#ffe1a1" transparent opacity={.65-i*.1}/></mesh>)}
-  </group>;
-}
-
-function BalconyDetails() {
-  const leaves: Array<[number,number,number]> = [[-.28,.72,-.08],[-.12,.9,.02],[.08,.82,.06],[.27,.68,-.03],[0,1.05,0]];
-  return <group>
-    <Plant position={[-1.45,.1,-3.72]} scale={1.35}/>
-    <group position={[.82,.82,-3.68]}><mesh castShadow><cylinderGeometry args={[.24,.21,.42,14]}/><meshStandardMaterial color="#608070"/></mesh><mesh position={[.29,.02,0]}><torusGeometry args={[.14,.045,8,16]}/><meshStandardMaterial color="#608070"/></mesh><mesh position={[0,.22,0]} rotation={[-Math.PI/2,0,0]}><circleGeometry args={[.19,18]}/><meshStandardMaterial color="#49352a"/></mesh></group>
   </group>;
 }
 
@@ -645,23 +888,23 @@ function TableDressing({ active, onFocus }: { active: FocusName; onFocus: (name:
     if (projectLid.current) projectLid.current.position.y = THREE.MathUtils.damp(projectLid.current.position.y, projectsActive ? .255 : 0, 7, delta);
   });
   return <group position={[-.2,0,1.35]}>
-    <Hotspot name="projects" position={[-.9,1.22,-.02]} active={active==="projects"} onFocus={onFocus}><group ref={projectStack} rotation={[0,-.08,0]}>{layers.map((color,i)=><group ref={node => { projectLayers.current[i] = node; }} key={color} position={[0,i*.105,0]} rotation={[0,(i%3-1)*.025,0]}><Box position={[0,0,0]} scale={[1.62,.09,1.15]} color={color} radius={.065}/><Box position={[.04,.048,.015]} scale={[1.48,.026,1.03]} color={i%2?"#e8d9b9":"#d8ceb3"} radius={.018}/><Box position={[.78,.018,.04]} scale={[.035,.06,.92]} color="#c5b996" radius={.01}/><Box position={[.72+(i%2)*.13,.055,-.32+i*.11]} scale={[.28,.035,.18]} color={i%2?"#e0b55f":"#d98768"} radius={.025}/></group>) }<group ref={projectLid}><Box position={[0,.67,0]} scale={[1.72,.16,1.18]} color="#c66f4c" radius={.085}/><Box position={[0,.755,0]} scale={[1.5,.025,1.02]} color="#de8e61" radius={.045}/><Box position={[.05,.79,-.05]} scale={[.86,.026,.35]} color="#eadcbf" radius={.025}/><PaperLabel text="Projekte" position={[.05,.808,-.05]} scale={[.72,.24,1]}/>{[[-.65,.44],[-.65,-.42],[.65,.44],[.65,-.42]].map(([x,z],i)=><mesh key={i} position={[x,.785,z]} rotation={[-Math.PI/2,0,0]}><circleGeometry args={[.035,12]}/><meshStandardMaterial color="#b95f45"/></mesh>)}</group></group></Hotspot>
+    <Hotspot name="projects" position={[-.9,1.22,-.02]} active={active==="projects"} onFocus={onFocus}><group ref={projectStack} rotation={[0,-.08,0]}>{layers.map((color,i)=><group ref={node => { projectLayers.current[i] = node; }} key={color} position={[0,i*.105,0]} rotation={[0,(i%3-1)*.025,0]}><Box position={[0,0,0]} scale={[1.62,.09,1.15]} color={color} radius={.065}/><Box position={[.04,.048,.015]} scale={[1.48,.026,1.03]} color={i%2?"#e8d9b9":"#d8ceb3"} radius={.018}/><Box position={[.78,.018,.04]} scale={[.035,.06,.92]} color="#c5b996" radius={.01}/><Box position={[.72+(i%2)*.13,.055,-.32+i*.11]} scale={[.28,.035,.18]} color={i%2?"#e0b55f":"#d98768"} radius={.025}/></group>) }<group ref={projectLid}><Box position={[0,.67,0]} scale={[1.72,.16,1.18]} color="#c66f4c" radius={.085}/><Box position={[0,.755,0]} scale={[1.5,.025,1.02]} color="#de8e61" radius={.045}/><Box position={[.05,.79,-.05]} scale={[.86,.026,.35]} color="#eadcbf" radius={.025}/><PaperLabel text="Projekte" position={[.05,.808,-.05]} scale={[.72,.24,1]}/>{[[-.65,.44],[-.65,-.42],[.65,.44],[.65,-.42]].map(([x,z],i)=><mesh key={i} position={[x,.785,z]} rotation={[-Math.PI/2,0,0]}><circleGeometry args={[.035,20]}/><meshStandardMaterial color="#b95f45"/></mesh>)}</group></group></Hotspot>
     <group position={[-2.2,1.52,.88]}><CoffeeMug/></group>
-    <Hotspot name="about" position={[1.02,1.46,.4]} active={active==="about"} onFocus={onFocus}><group rotation={[0,.1,0]}><Box position={[0,-.12,0]} scale={[1.02,.07,1.2]} color="#52694f" radius={.07}/><Box position={[.02,-.05,0]} scale={[.92,.11,1.1]} color="#e2d2ae" radius={.035}/><Box position={[0,.04,0]} scale={[1.04,.12,1.22]} color="#75866b" radius={.075}/><Box position={[0,.11,0]} scale={[.88,.026,.28]} color="#e4d5b5" radius={.018}/><PaperLabel text="Journal" position={[0,.13,0]} rotation={[-Math.PI/2,0,0]} scale={[.78,.2,1]}/>{[-.35,0,.35].map(z=><mesh key={z} position={[-.5,.05,z]} rotation={[Math.PI/2,0,0]}><torusGeometry args={[.065,.018,7,14]}/><meshStandardMaterial color="#b99461" metalness={.15} roughness={.65}/></mesh>)}<mesh position={[.23,.12,-.22]} rotation={[-Math.PI/2,0,.2]}><circleGeometry args={[.065,10]}/><meshStandardMaterial color="#d08061"/></mesh></group></Hotspot>
+    <Hotspot name="about" position={[1.02,1.46,.4]} active={active==="about"} onFocus={onFocus}><group rotation={[0,.1,0]}><Box position={[0,-.12,0]} scale={[1.02,.07,1.2]} color="#52694f" radius={.07}/><Box position={[.02,-.05,0]} scale={[.92,.11,1.1]} color="#e2d2ae" radius={.035}/><Box position={[0,.04,0]} scale={[1.04,.12,1.22]} color="#75866b" radius={.075}/><Box position={[0,.11,0]} scale={[.88,.026,.28]} color="#e4d5b5" radius={.018}/><PaperLabel text="Journal" position={[0,.13,0]} rotation={[-Math.PI/2,0,0]} scale={[.78,.2,1]}/>{[-.35,0,.35].map(z=><mesh key={z} position={[-.5,.05,z]} rotation={[Math.PI/2,0,0]}><torusGeometry args={[.065,.018,10,24]}/><meshStandardMaterial color="#b99461" metalness={.15} roughness={.65}/></mesh>)}<mesh position={[.23,.12,-.22]} rotation={[-Math.PI/2,0,.2]}><circleGeometry args={[.065,20]}/><meshStandardMaterial color="#d08061"/></mesh></group></Hotspot>
     <Box position={[1.56,1.228,.48]} scale={[.055,.055,1.0]} color="#453c32" rotation={[0,.12,0]}/><Box position={[1.72,1.228,.48]} scale={[.05,.05,1.0]} color="#c4884d" rotation={[0,.12,0]}/>
   </group>;
 }
 
 function Lounge() {
   return <group position={[-4.32,0,.55]} rotation={[0,.1,0]}>
-    <FurnitureAsset name="couch_pillows" position={[0,.08,.2]} rotation={[0,0,0]} scale={[.88,.93,.88]} tint="#74895b"/>
+    <FurnitureAsset name="couch_pillows" position={[0,.08,.2]} rotation={[0,0,0]} scale={[.88,.93,.88]} tint="#4f7446"/>
   </group>;
 }
 
 function LoungeDetails() {
   return <group>
-    <mesh receiveShadow position={[-3.55,.02,1.05]} rotation={[-Math.PI/2,0,.12]}><circleGeometry args={[2.15,32]}/><meshStandardMaterial color="#d8c39d" roughness={1}/></mesh>
-    <group position={[-4.9,.34,2.62]} rotation={[0,.18,-.04]}><Box position={[0,0,0]} scale={[.96,.14,.14]} color="#44433e"/><mesh position={[-.59,0,0]} rotation={[0,0,Math.PI/2]}><cylinderGeometry args={[.32,.32,.28,10]}/><meshStandardMaterial color="#34322f" roughness={.85}/></mesh><mesh position={[-.78,0,0]} rotation={[0,0,Math.PI/2]}><cylinderGeometry args={[.25,.25,.18,10]}/><meshStandardMaterial color="#2e2d2a" roughness={.9}/></mesh><mesh position={[.59,0,0]} rotation={[0,0,Math.PI/2]}><cylinderGeometry args={[.32,.32,.28,10]}/><meshStandardMaterial color="#34322f" roughness={.85}/></mesh><mesh position={[.78,0,0]} rotation={[0,0,Math.PI/2]}><cylinderGeometry args={[.25,.25,.18,10]}/><meshStandardMaterial color="#2e2d2a" roughness={.9}/></mesh></group>
+    <mesh receiveShadow position={[-3.55,.02,1.05]} rotation={[-Math.PI/2,0,.12]}><circleGeometry args={[2.15,64]}/><meshStandardMaterial color="#d8c39d" roughness={1}/></mesh>
+    <group position={[-4.9,.34,2.62]} rotation={[0,.18,-.04]}><Box position={[0,0,0]} scale={[.96,.14,.14]} color="#44433e"/><mesh position={[-.59,0,0]} rotation={[0,0,Math.PI/2]}><cylinderGeometry args={[.32,.32,.28,32]}/><meshStandardMaterial color="#34322f" roughness={.85}/></mesh><mesh position={[-.78,0,0]} rotation={[0,0,Math.PI/2]}><cylinderGeometry args={[.25,.25,.18,32]}/><meshStandardMaterial color="#2e2d2a" roughness={.9}/></mesh><mesh position={[.59,0,0]} rotation={[0,0,Math.PI/2]}><cylinderGeometry args={[.32,.32,.28,32]}/><meshStandardMaterial color="#34322f" roughness={.85}/></mesh><mesh position={[.78,0,0]} rotation={[0,0,Math.PI/2]}><cylinderGeometry args={[.25,.25,.18,32]}/><meshStandardMaterial color="#2e2d2a" roughness={.9}/></mesh></group>
   </group>;
 }
 
@@ -674,42 +917,45 @@ function Workstation({ active, onFocus }: { active: FocusName; onFocus: (name: F
   }, [monitorScreen]);
   return <group position={[3.72,0,-2.12]} rotation={[0,-.04,0]}><FurnitureAsset name="table_medium_long" position={[0,.02,0]} scale={[1.24,1.12,.74]}/><Box position={[-.28,1.19,.22]} scale={[1.92,.035,.72]} color="#586351" radius={.04} surface="fabric"/>
     <Hotspot name="skills" position={[-.34,1.18,-.12]} active={active==="skills"} onFocus={onFocus}><Box position={[0,.84,0]} scale={[1.78,1.2,.16]} color="#343532" radius={.09}/><RoundedBox castShadow position={[0,.84,.102]} scale={[1.58,.91,.035]} args={[1,1,1]} radius={.055} smoothness={4}><meshBasicMaterial map={monitorScreen} toneMapped={false} color={active === "skills" ? "#fff4da" : "#d8cdb8"}/></RoundedBox><Box position={[0,.2,0]} scale={[.13,.7,.13]} color="#3c3b37" radius={.04}/><Box position={[0,.01,.1]} scale={[.78,.1,.46]} color="#4c4942" radius={.05}/></Hotspot>
-    <group position={[1.05,1.22,-.16]}><Box position={[0,.56,0]} scale={[.8,1.3,.78]} color="#30332f" radius={.09}/><Box position={[0,.56,.405]} scale={[.65,1.1,.025]} color="#31484b" radius={.04}/>{[.33,.73].map((y,i)=><mesh key={y} position={[0,y,.44]}><torusGeometry args={[.17,.045,10,22]}/><meshStandardMaterial color={i?"#86b7be":"#6fa5ac"} emissive={i?"#5e9ea9":"#548b98"} emissiveIntensity={1.35}/></mesh>)}<mesh position={[0,1.05,.44]}><circleGeometry args={[.035,12]}/><meshStandardMaterial color="#e5c374" emissive="#dca84d" emissiveIntensity={.8}/></mesh></group>
-    {[-1.3,.56].map((x)=><group key={x} position={[x,1.27,.08]}><Box position={[0,.31,0]} scale={[.34,.66,.32]} color="#3c4039" radius={.05}/><mesh position={[0,.34,.17]}><circleGeometry args={[.095,18]}/><meshStandardMaterial color="#bd9860"/></mesh><mesh position={[0,.1,.17]}><circleGeometry args={[.055,16]}/><meshStandardMaterial color="#2d302c"/></mesh></group>)}
+    <group position={[1.05,1.22,-.16]}><Box position={[0,.56,0]} scale={[.8,1.3,.78]} color="#30332f" radius={.09}/><Box position={[0,.56,.405]} scale={[.65,1.1,.025]} color="#31484b" radius={.04}/>{[.32,.8].map((y)=><group key={y} position={[0,y,.43]}><mesh><torusGeometry args={[.15,.028,16,48]}/><meshStandardMaterial color="#7fb3c8" emissive="#5d97b0" emissiveIntensity={1.0}/></mesh><mesh position={[0,0,-.01]}><circleGeometry args={[.13,32]}/><meshStandardMaterial color="#1c2428" roughness={.6}/></mesh>{[0,1,2,3,4,5,6].map(b=><mesh key={b} position={[0,0,.005]} rotation={[0,0,b*Math.PI*2/7]}><boxGeometry args={[.11,.03,.008]}/><meshStandardMaterial color="#2e3a40" roughness={.5}/></mesh>)}</group>)}<mesh position={[0,1.05,.44]}><circleGeometry args={[.035,20]}/><meshStandardMaterial color="#e5c374" emissive="#dca84d" emissiveIntensity={.8}/></mesh></group>
+    {[-1.3,.56].map((x)=><group key={x} position={[x,1.27,.08]}><Box position={[0,.31,0]} scale={[.34,.66,.32]} color="#3c4039" radius={.05}/><mesh position={[0,.34,.17]}><circleGeometry args={[.095,28]}/><meshStandardMaterial color="#bd9860"/></mesh><mesh position={[0,.1,.17]}><circleGeometry args={[.055,24]}/><meshStandardMaterial color="#2d302c"/></mesh></group>)}
     <FurnitureAsset name="cabinet_medium" position={[1.46,.03,-.18]} rotation={[0,0,0]} scale={[.45,.9,.72]}/>
     <group position={[-.18,1.175,.42]}><DesktopKeyboard/></group>
-    <FurnitureAsset name="chair_C" position={[-.72,.04,1.28]} rotation={[0,Math.PI,0]} scale={[1.55,1.35,1.55]}/><Plant position={[1.48,1.2,.22]} scale={.52}/>
+    <FurnitureAsset name="chair_C" position={[-.72,.04,1.28]} rotation={[0,Math.PI,0]} scale={[1.55,1.35,1.55]} tint="#7a9440"/><Plant position={[1.48,1.2,.22]} scale={.52}/>
   </group>;
 }
 
 function WallDetails() {
   return <group>
-    <group position={[-5.05,4.0,-4.05]}><FurnitureAsset name="shelf_A_big" position={[0,0,0]} rotation={[0,0,0]} scale={[.72,.68,.78]}/><Plant position={[-.18,.08,.12]} scale={.88}/></group>
     <group position={[-5.05,2.42,-4.14]}><Box position={[0,0,0]} scale={[1.16,1.55,.14]} color={P.dark}/><Box position={[0,0,.09]} scale={[.98,1.36,.04]} color="#dbc79f"/><Box position={[0,.22,.14]} scale={[.68,.09,.04]} color="#56654e"/><Box position={[0,-.05,.14]} scale={[.78,.09,.04]} color="#56654e"/><Box position={[0,-.32,.14]} scale={[.58,.09,.04]} color="#56654e"/></group>
-    <FurnitureAsset name="shelf_B_large_decorated" position={[3.9,4.0,-4.02]} rotation={[0,0,0]} scale={[1.72,1.18,1.12]}/>
-    <group position={[3.25,3.12,-4.03]}><Box position={[0,0,0]} scale={[2.35,1.25,.15]} color={P.dark}/><Box position={[0,0,.1]} scale={[2.08,1,.04]} color="#a9764d"/>{[[-.72,.13],[-.3,-.17],[.16,.18],[.62,-.1],[.82,.28]].map(([x,y],i)=><group key={`${x}-${y}`} position={[x,y,.16]} rotation={[0,0,(i-2)*.055]}><Box position={[0,0,0]} scale={[.34,.46,.025]} color="#e4d6b8" radius={.015}/><Box position={[0,.045,.018]} scale={[.27,.27,.012]} color={i%2?"#739080":"#b66d50"} radius={.008}/><mesh position={[0,.24,.03]}><sphereGeometry args={[.035,8,6]}/><meshStandardMaterial color={i%2?"#d6b259":"#758560"}/></mesh></group>)}</group>
     <group position={[4.85,2.7,-4.02]}><Box position={[0,0,0]} scale={[1.2,1.72,.14]} color={P.dark}/><Box position={[0,0,.09]} scale={[1.02,1.53,.035]} color="#d8c39a"/><Box position={[0,.2,.14]} scale={[.7,.09,.03]} color="#54634c"/><Box position={[0,-.08,.14]} scale={[.82,.09,.03]} color="#54634c"/><Box position={[0,-.36,.14]} scale={[.58,.09,.03]} color="#54634c"/></group>
+    <group position={[-5.05,4.0,-4.05]}><FurnitureAsset name="shelf_A_big" position={[0,0,0]} rotation={[0,0,0]} scale={[.72,.68,.78]}/><Plant position={[-.18,.08,.12]} scale={.88}/></group>
+    <FurnitureAsset name="shelf_B_large_decorated" position={[3.9,4.0,-4.02]} rotation={[0,0,0]} scale={[1.72,1.18,1.12]}/>
+    <group position={[3.25,3.12,-4.03]}><Box position={[0,0,0]} scale={[2.35,1.25,.15]} color={P.dark}/><Box position={[0,0,.1]} scale={[2.08,1,.04]} color="#a9764d"/>{[[-.72,.13],[-.3,-.17],[.16,.18],[.62,-.1],[.82,.28]].map(([x,y],i)=><group key={`${x}-${y}`} position={[x,y,.16]} rotation={[0,0,(i-2)*.055]}><Box position={[0,0,0]} scale={[.34,.46,.025]} color="#e4d6b8" radius={.015}/><Box position={[0,.045,.018]} scale={[.27,.27,.012]} color={i%2?"#739080":"#b66d50"} radius={.008}/><mesh position={[0,.24,.03]}><sphereGeometry args={[.035,14,10]}/><meshStandardMaterial color={i%2?"#d6b259":"#758560"}/></mesh></group>)}</group>
   </group>;
 }
 
 function ShelfAccents() {
   return <group>
-    <group position={[4.3,4.92,-3.78]}>{Array.from({length:5}).map((_,i)=>{const angle=i*Math.PI*2/5;return <mesh key={i} position={[Math.sin(angle)*.22,Math.cos(angle)*.22,0]} rotation={[0,0,-angle]}><coneGeometry args={[.13,.42,8]}/><meshStandardMaterial color="#ffd986" emissive="#ffb64f" emissiveIntensity={1.8}/></mesh>})}<mesh><sphereGeometry args={[.2,14,10]}/><meshStandardMaterial color="#ffe09a" emissive="#ffb64f" emissiveIntensity={1.8}/></mesh><pointLight color="#ffc46e" intensity={3.2} distance={4}/></group>
-    <group position={[5.25,4.62,-3.78]}><Box position={[0,0,0]} scale={[.08,.72,.08]} color="#496247" radius={.03}/>{[0,-.35,-.7,-1.05,-1.38].map((y,i)=><group key={y} position={[Math.sin(i*.8)*.16,y,.02]}><mesh position={[-.14,0,0]} rotation={[0,0,.55]} scale={[1.25,.7,1]}><sphereGeometry args={[.14,10,8]}/><meshStandardMaterial color="#55734f"/></mesh><mesh position={[.14,-.08,0]} rotation={[0,0,-.55]} scale={[1.25,.7,1]}><sphereGeometry args={[.14,10,8]}/><meshStandardMaterial color="#68845d"/></mesh></group>)}</group>
+    <group position={[4.3,4.92,-3.78]}>{Array.from({length:5}).map((_,i)=>{const angle=i*Math.PI*2/5;return <mesh key={i} position={[Math.sin(angle)*.22,Math.cos(angle)*.22,0]} rotation={[0,0,-angle]}><coneGeometry args={[.13,.42,16]}/><meshStandardMaterial color="#ffd986" emissive="#ffb64f" emissiveIntensity={1.8}/></mesh>})}<mesh><sphereGeometry args={[.2,24,16]}/><meshStandardMaterial color="#ffe09a" emissive="#ffb64f" emissiveIntensity={1.8}/></mesh><pointLight color="#ffc46e" intensity={3.2} distance={4}/></group>
+    <TrailingVine anchor={[5.15,4.05,-3.82]} length={2.1} seed={1}/>
+    <TrailingVine anchor={[4.75,4.05,-3.86]} length={1.35} seed={2}/>
+    <TrailingVine anchor={[-4.7,4.08,-3.86]} length={1.6} seed={3}/>
+    <Plant position={[3.0,4.18,-3.95]} scale={.62}/>
   </group>;
 }
 
 function DeskDetails() {
   return <group>
-    <group position={[4.2,1.24,-1.25]}><Box position={[-1.45,.55,.02]} scale={[.38,.82,.38]} color="#3c4738"/><mesh position={[-1.45,1.08,.04]} rotation={[0,0,-.35]}><cylinderGeometry args={[.29,.36,.38,12]}/><meshStandardMaterial color="#40543e" emissive="#806b36" emissiveIntensity={.18}/></mesh><mesh position={[-1.36,.93,.2]}><sphereGeometry args={[.11,12,8]}/><meshStandardMaterial color="#ffe1a0" emissive="#ffb957" emissiveIntensity={1.6}/></mesh><pointLight position={[-1.35,.9,.22]} intensity={2.4} distance={3.5} color="#ffc36a"/><Box position={[-1.62,.18,.02]} scale={[.1,.82,.1]} color="#40513d" rotation={[0,0,-.18]}/>
+    <group position={[4.2,1.24,-1.25]}>
       <Box position={[.12,.05,.72]} scale={[1.2,.07,.4]} color="#e5d8be"/>{Array.from({length:9}).map((_,i)=><Box key={i} position={[-.47+i*.12,.1,.72]} scale={[.07,.025,.18]} color="#b7aa91" radius={.01}/>)}</group>
-    <group position={[-1.95,1.52,1.22]}><mesh castShadow><cylinderGeometry args={[.34,.3,.52,16]}/><meshStandardMaterial color="#6f896d"/></mesh><mesh position={[.37,.02,0]} rotation={[Math.PI/2,0,0]}><torusGeometry args={[.2,.055,8,18]}/><meshStandardMaterial color="#6f896d"/></mesh></group>
+    <group position={[-1.95,1.52,1.22]}><mesh castShadow><cylinderGeometry args={[.34,.3,.52,36]}/><meshStandardMaterial color="#6f896d"/></mesh><mesh position={[.37,.02,0]} rotation={[Math.PI/2,0,0]}><torusGeometry args={[.2,.055,14,32]}/><meshStandardMaterial color="#6f896d"/></mesh></group>
   </group>;
 }
 
 function StudioDetails() {
   return <group>
-    <group position={[3.44,2.02,-1.35]}><mesh position={[0,0,.01]}><planeGeometry args={[1.35,.82]}/><meshBasicMaterial color="#d8b278"/></mesh><mesh position={[.35,.2,.025]}><circleGeometry args={[.12,18]}/><meshBasicMaterial color="#ffe0a0"/></mesh>{[-.38,0,.38].map((x,i)=><mesh key={x} position={[x,-.12,.03]} scale={[1,.72,1]}><coneGeometry args={[.3,.55,3]}/><meshBasicMaterial color={i%2?"#6d8c75":"#5f7d68"}/></mesh>)}<Box position={[0,-.34,.04]} scale={[1.15,.08,.02]} color="#6f9aa0" radius={.005}/></group>
+    <group position={[3.44,2.02,-1.35]}><mesh position={[0,0,.01]}><planeGeometry args={[1.35,.82]}/><meshBasicMaterial color="#d8b278"/></mesh><mesh position={[.35,.2,.025]}><circleGeometry args={[.12,28]}/><meshBasicMaterial color="#ffe0a0"/></mesh>{[-.38,0,.38].map((x,i)=><mesh key={x} position={[x,-.12,.03]} scale={[1,.72,1]}><coneGeometry args={[.3,.55,3]}/><meshBasicMaterial color={i%2?"#6d8c75":"#5f7d68"}/></mesh>)}<Box position={[0,-.34,.04]} scale={[1.15,.08,.02]} color="#6f9aa0" radius={.005}/></group>
     <group position={[5.05,.05,-.65]}><Box position={[0,.52,0]} scale={[1.65,.18,.82]} color={P.wood}/><Box position={[-.65,.22,0]} scale={[.18,.62,.18]} color={P.dark}/><Box position={[.65,.22,0]} scale={[.18,.62,.18]} color={P.dark}/><Box position={[0,.85,0]} scale={[1.35,.24,.72]} color="#393832"/>{Array.from({length:12}).map((_,i)=><Box key={i} position={[-.55+i*.1,1.02,.1]} scale={[.065,.05,.38]} color={i%3?"#e7dfcf":"#bdb6aa"} radius={.01}/>)}</group>
     <group position={[4.75,.05,-2.55]}><Box position={[0,.5,0]} scale={[1.25,1,.82]} color="#6d6d63"/>{[-.34,0,.34].map(y=><Box key={y} position={[0,.5+y,.43]} scale={[.92,.24,.04]} color="#55564f" radius={.02}/>)}</group>
     <group position={[5.15,1.2,-3.72]}><Box position={[0,0,0]} scale={[1.65,.18,.48]} color={P.wood}/>{[-.55,0,.55].map((x,i)=><Box key={x} position={[x,.35,0]} scale={[.24,.62,.3]} color={["#506c63","#a86444","#405a6b"][i]}/>)}</group>
@@ -739,68 +985,251 @@ function MusicStation() {
   </group>;
 }
 
-function RoomAccents() {
-  return <group>
-    <FurnitureAsset name="book_set" position={[4.18,1.13,-2.02]} rotation={[0,.18,0]} scale={[.42,.42,.42]}/>
+function ArchitectLamp({ position, rotation = [0,0,0] }: { position: V3; rotation?: V3 }) {
+  const green = <meshPhysicalMaterial color="#3f5f3c" roughness={.38} clearcoat={.7} clearcoatRoughness={.2}/>;
+  const joint = <meshStandardMaterial color="#2c3a2b" roughness={.4} metalness={.4}/>;
+  return <group position={position} rotation={rotation}>
+    <mesh castShadow receiveShadow position={[0,.03,0]}><cylinderGeometry args={[.2,.23,.06,40]}/>{green}</mesh>
+    <mesh position={[0,.09,0]}><sphereGeometry args={[.045,16,12]}/>{joint}</mesh>
+    <mesh castShadow position={[.0,.44,-.08]} rotation={[-.22,0,0]}><cylinderGeometry args={[.022,.022,.72,16]}/>{green}</mesh>
+    <mesh position={[0,.79,-.16]}><sphereGeometry args={[.04,16,12]}/>{joint}</mesh>
+    <mesh castShadow position={[0,.86,.12]} rotation={[1.3,0,0]}><cylinderGeometry args={[.02,.02,.6,16]}/>{green}</mesh>
+    <group position={[0,.86,.42]} rotation={[.9,0,0]}>
+      <mesh castShadow><cylinderGeometry args={[.07,.2,.26,40,1,true]}/><meshPhysicalMaterial color="#3f5f3c" roughness={.38} clearcoat={.7} side={THREE.DoubleSide}/></mesh>
+      <mesh position={[0,.15,0]}><sphereGeometry args={[.075,20,14,0,Math.PI * 2,0,Math.PI / 2]}/>{green}</mesh>
+      <mesh position={[0,-.06,0]}><sphereGeometry args={[.06,16,12]}/><meshStandardMaterial color="#fff2cf" emissive="#ffc46a" emissiveIntensity={3}/></mesh>
+    </group>
+    <pointLight position={[0,.6,.6]} color="#ffc878" intensity={2.2} distance={3.2} decay={2}/>
   </group>;
 }
 
-function Board({ position, width, height, depth, color, rail, sidecut = 0, children }: { position: V3; width: number; height: number; depth: number; color: string; rail: string; sidecut?: number; children?: ReactNode }) {
-  const shape = useMemo(() => {
-    const next = new THREE.Shape();
-    const half = width / 2;
-    const lower = -height / 2;
-    const upper = height / 2;
-    next.moveTo(-half * .72, lower);
-    next.quadraticCurveTo(-half, lower + .08, -half, lower + width * .42);
-    next.lineTo(-half + sidecut, 0);
-    next.lineTo(-half, upper - width * .42);
-    next.quadraticCurveTo(-half, upper - .08, -half * .58, upper);
-    next.quadraticCurveTo(0, upper + .08, half * .58, upper);
-    next.quadraticCurveTo(half, upper - .08, half, upper - width * .42);
-    next.lineTo(half - sidecut, 0);
-    next.lineTo(half, lower + width * .42);
-    next.quadraticCurveTo(half, lower + .08, half * .72, lower);
-    next.quadraticCurveTo(0, lower - .07, -half * .72, lower);
+function RoundRug({ position, radius }: { position: V3; radius: number }) {
+  const texture = useMemo(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 512;
+    const context = canvas.getContext("2d")!;
+    context.fillStyle = "#e8dcc4";
+    context.fillRect(0, 0, 512, 512);
+    // Braided rings plus fiber speckle read as a woven wool rug.
+    for (let r = 250; r > 10; r -= 9) {
+      context.strokeStyle = `rgba(${150 + (r % 27)},${130 + (r % 19)},${100 + (r % 13)},.22)`;
+      context.lineWidth = 3;
+      context.beginPath(); context.arc(256, 256, r, 0, Math.PI * 2); context.stroke();
+    }
+    for (let i = 0; i < 9000; i++) {
+      const shade = Math.random() > .5 ? 255 : 110;
+      context.fillStyle = `rgba(${shade},${shade - 20},${shade - 50},${Math.random() * .12})`;
+      context.fillRect(Math.random() * 512, Math.random() * 512, 1.5, 1.5);
+    }
+    const next = new THREE.CanvasTexture(canvas);
+    next.colorSpace = THREE.SRGBColorSpace;
+    next.anisotropy = 8;
     return next;
-  }, [height, sidecut, width]);
-  const edgeSettings = useMemo(() => ({ depth, bevelEnabled: true, bevelSegments: 3, steps: 1, bevelSize: .035, bevelThickness: .025 }), [depth]);
+  }, []);
+  useEffect(() => () => texture.dispose(), [texture]);
+  return <group position={position} scale={[1.22,1,1]}>
+    <mesh rotation={[-Math.PI / 2,0,0]} receiveShadow><circleGeometry args={[radius,96]}/><meshPhysicalMaterial map={texture} roughness={1} sheen={1} sheenRoughness={.8} sheenColor="#fff4e0"/></mesh>
+    <mesh rotation={[-Math.PI / 2,0,0]} receiveShadow castShadow><torusGeometry args={[radius,.045,10,128]}/><meshPhysicalMaterial color="#bfa88a" roughness={1} sheen={1} sheenRoughness={.7} sheenColor="#fff4e0"/></mesh>
+  </group>;
+}
+
+/** Pothos strand hanging from a shelf: a soft stem with heart-shaped leaves that sway a little. */
+function TrailingVine({ anchor, length, seed }: { anchor: V3; length: number; seed: number }) {
+  const group = useRef<THREE.Group>(null);
+  const leaves = useRef<THREE.InstancedMesh>(null);
+  const reducedMotion = useReducedMotionRef();
+  const { stem, placements, leafGeometry } = useMemo(() => {
+    const rand = (n: number) => { const v = Math.sin(n * 91.7 + seed * 13.1) * 43758.5453; return v - Math.floor(v); };
+    const points: THREE.Vector3[] = [];
+    for (let i = 0; i <= 12; i++) { const t = i / 12; points.push(new THREE.Vector3(Math.sin(t * 5 + seed) * .07 + t * .12 * (seed % 2 ? 1 : -1), -t * length, .05 + Math.sin(t * 3.3 + seed) * .05 + t * .08)); }
+    const curve = new THREE.CatmullRomCurve3(points);
+    const heart = new THREE.Shape();
+    heart.moveTo(0, 0); heart.bezierCurveTo(.07, .03, .09, .1, .05, .14); heart.bezierCurveTo(.03, .16, 0, .15, 0, .12);
+    heart.bezierCurveTo(0, .15, -.03, .16, -.05, .14); heart.bezierCurveTo(-.09, .1, -.07, .03, 0, 0);
+    const leafGeometry = new THREE.ShapeGeometry(heart, 10);
+    leafGeometry.rotateZ(Math.PI);
+    const placements: THREE.Matrix4[] = [];
+    const count = Math.round(length * 11);
+    for (let i = 0; i < count; i++) {
+      const t = (i + .5) / count;
+      const p = curve.getPointAt(t);
+      const side = i % 2 ? 1 : -1;
+      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-.5 + rand(i) * .4, side * (.6 + rand(i + 3) * .5), side * (.5 + rand(i + 7) * .6)));
+      const k = .8 + rand(i + 11) * .5;
+      placements.push(new THREE.Matrix4().compose(p.add(new THREE.Vector3(side * .03, 0, .02)), q, new THREE.Vector3(k, k, k)));
+    }
+    return { stem: new THREE.TubeGeometry(curve, 48, .008, 5), placements, leafGeometry };
+  }, [length, seed]);
+  useEffect(() => () => { stem.dispose(); leafGeometry.dispose(); }, [leafGeometry, stem]);
+  useLayoutEffect(() => {
+    const mesh = leaves.current;
+    if (!mesh) return;
+    const color = new THREE.Color();
+    placements.forEach((matrix, index) => { mesh.setMatrixAt(index, matrix); mesh.setColorAt(index, color.set(index % 3 ? "#5f8a48" : "#7da35a")); });
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    mesh.computeBoundingSphere();
+  }, [placements]);
+  useFrame(({ clock }) => {
+    if (!group.current || reducedMotion.current) return;
+    group.current.rotation.z = Math.sin(clock.elapsedTime * .6 + seed) * .025;
+    group.current.rotation.x = Math.sin(clock.elapsedTime * .45 + seed * 2) * .02;
+  });
+  return <group ref={group} position={anchor}>
+    <mesh geometry={stem} castShadow><meshStandardMaterial color="#4c6b38" roughness={.8}/></mesh>
+    <instancedMesh ref={leaves} args={[leafGeometry, undefined, placements.length]} castShadow>
+      <meshPhysicalMaterial side={THREE.DoubleSide} roughness={.55} sheen={.4} sheenColor="#e2f0c0" clearcoat={.25}/>
+    </instancedMesh>
+  </group>;
+}
+
+function Lantern({ position }: { position: V3 }) {
+  const flame = useRef<THREE.MeshPhysicalMaterial>(null);
+  const light = useRef<THREE.PointLight>(null);
+  const reducedMotion = useReducedMotionRef();
+  useFrame(({ clock }) => {
+    if (reducedMotion.current) return;
+    const t = clock.elapsedTime;
+    // Layered, non-repeating candle flicker: a slow breath, a quicker waver and occasional gutters.
+    const f = .82 + Math.sin(t * 2.3) * .07 + Math.sin(t * 7.9 + 1.3) * .05 + Math.sin(t * 17.1) * .03 + Math.max(0, Math.sin(t * .9) - .92) * -1.6;
+    if (flame.current) flame.current.emissiveIntensity = 3.2 * f;
+    if (light.current) light.current.intensity = 3.4 * f;
+  });
+  const metal = <meshPhysicalMaterial color="#4f5f47" roughness={.45} metalness={.35} clearcoat={.4}/>;
   return <group position={position}>
-    <mesh castShadow receiveShadow position={[0,0,-depth * .5]}><extrudeGeometry args={[shape,edgeSettings]}/><meshStandardMaterial color={rail} roughness={.78}/></mesh>
-    <mesh position={[0,0,depth * .52 + .032]} scale={[.9,.96,1]} renderOrder={2}>
-      <shapeGeometry args={[shape]}/>
-      <meshStandardMaterial color={color} roughness={.82} polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2}/>
-    </mesh>
+    <mesh castShadow position={[0,.05,0]}><cylinderGeometry args={[.17,.19,.1,32]}/>{metal}</mesh>
+    <mesh position={[0,.3,0]}><cylinderGeometry args={[.13,.13,.4,32]}/><meshPhysicalMaterial ref={flame} color="#fff1c9" emissive="#ffa040" emissiveIntensity={3.2} roughness={.2} transmission={0} transparent opacity={.92}/></mesh>
+    {[0,1,2,3].map(i=><mesh key={i} castShadow position={[Math.cos(i*Math.PI/2)*.14,.3,Math.sin(i*Math.PI/2)*.14]}><cylinderGeometry args={[.014,.014,.42,8]}/>{metal}</mesh>)}
+    <mesh castShadow position={[0,.56,0]}><coneGeometry args={[.19,.16,32]}/>{metal}</mesh>
+    <mesh position={[0,.7,0]}><torusGeometry args={[.08,.012,8,24]}/>{metal}</mesh>
+    <pointLight ref={light} position={[0,.32,.05]} color="#ffa95a" intensity={3.4} distance={3.6} decay={2}/>
+  </group>;
+}
+
+function Kettlebell({ position }: { position: V3 }) {
+  return <group position={position}>
+    <mesh castShadow receiveShadow position={[0,.25,0]} scale={[1,.92,1]}><sphereGeometry args={[.27,36,24]}/><meshPhysicalMaterial color="#4f6e45" roughness={.55} clearcoat={.3}/></mesh>
+    <mesh castShadow position={[0,.5,0]}><torusGeometry args={[.15,.04,14,36,Math.PI]}/><meshPhysicalMaterial color="#4f6e45" roughness={.55} clearcoat={.3}/></mesh>
+  </group>;
+}
+
+function YogaMat({ position, rotation = [0,0,0] }: { position: V3; rotation?: V3 }) {
+  return <group position={position} rotation={rotation}>
+    <mesh castShadow receiveShadow rotation={[0,0,Math.PI / 2]}><cylinderGeometry args={[.21,.21,.95,40]}/><meshPhysicalMaterial color="#2f4d84" roughness={.8} sheen={.4} sheenColor="#9fb6e8"/></mesh>
+    {[-1,1].map(side=><mesh key={side} position={[side * .476,0,0]} rotation={[0,0,Math.PI / 2]}><cylinderGeometry args={[.205,.205,.004,40]}/><meshStandardMaterial color="#223a66" roughness={.9}/></mesh>)}
+    {[-.3,.3].map(x=><mesh key={x} position={[x,0,0]} rotation={[0,Math.PI / 2,0]}><torusGeometry args={[.215,.012,8,40]}/><meshStandardMaterial color="#1c2b45" roughness={.8}/></mesh>)}
+  </group>;
+}
+
+function RoomAccents() {
+  return <group>
+    <FurnitureAsset name="book_set" position={[4.18,1.13,-2.02]} rotation={[0,.18,0]} scale={[.42,.42,.42]}/>
+    <group position={[-5.72,.03,-1.05]} rotation={[0,Math.PI / 2,0]}>
+      <FurnitureAsset name="cabinet_small" position={[0,0,0]} scale={[.6,.62,.6]}/>
+      <Lantern position={[-.18,.66,.02]}/>
+      <Plant position={[.28,.66,.04]} scale={.42}/>
+    </group>
+    <Kettlebell position={[4.15,.05,2.35]}/>
+    <YogaMat position={[5.25,.26,2.75]} rotation={[0,-.35,0]}/>
+  </group>;
+}
+
+/** Builds a closed board outline from a half-width profile sampled from tail (t=0) to nose (t=1). */
+function profileShape(length: number, halfWidth: (t: number) => number, samples = 48) {
+  const shape = new THREE.Shape();
+  const points: THREE.Vector2[] = [];
+  for (let i = 0; i <= samples; i++) { const t = i / samples; points.push(new THREE.Vector2(halfWidth(t), (t - .5) * length)); }
+  for (let i = samples; i >= 0; i--) { const t = i / samples; points.push(new THREE.Vector2(-halfWidth(t), (t - .5) * length)); }
+  shape.setFromPoints(points);
+  return shape;
+}
+
+/** Extruded board with rounded rails; the deck print sits as an inset layer, and tips can rise like ski shovels. */
+function ShapedBoard({ shape, thickness, rail, deck, deckInset = .9, tipRise = 0, length, gloss = .6, children }: { shape: THREE.Shape; thickness: number; rail: string; deck: string; deckInset?: number; tipRise?: number; length: number; gloss?: number; children?: ReactNode }) {
+  const { body, top } = useMemo(() => {
+    const bevel = Math.min(thickness * .48, .03);
+    const body = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: true, bevelSegments: 5, steps: 1, bevelSize: bevel, bevelThickness: bevel, curveSegments: 32 });
+    body.translate(0, 0, -thickness / 2);
+    const top = new THREE.ShapeGeometry(shape, 32);
+    top.scale(deckInset, deckInset + (1 - deckInset) * .6, 1);
+    top.translate(0, 0, thickness / 2 + bevel + .002);
+    if (tipRise) {
+      // Bend the last stretch toward the wall side so ski and board tips curl up.
+      [body, top].forEach(geometry => {
+        const positions = geometry.attributes.position;
+        for (let i = 0; i < positions.count; i++) {
+          const y = positions.getY(i), start = length / 2 - .32;
+          if (y > start) { const k = (y - start) / .32; positions.setZ(i, positions.getZ(i) - k * k * tipRise); }
+        }
+        geometry.computeVertexNormals();
+      });
+    }
+    return { body, top };
+  }, [deckInset, length, shape, thickness, tipRise]);
+  useEffect(() => () => { body.dispose(); top.dispose(); }, [body, top]);
+  return <group>
+    <mesh geometry={body} castShadow receiveShadow><meshPhysicalMaterial color={rail} roughness={.45} clearcoat={gloss} clearcoatRoughness={.18}/></mesh>
+    <mesh geometry={top} receiveShadow><meshPhysicalMaterial color={deck} roughness={.42} clearcoat={gloss} clearcoatRoughness={.15} polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2}/></mesh>
     {children}
   </group>;
 }
 
-function Hobbies() {
-  const binding = (x: number, y: number) => <group key={`${x}-${y}`} position={[x,y,.17]}>
-    <Box position={[0,0,0]} scale={[.34,.14,.12]} color="#2e302d" radius={.045}/>
-    <Box position={[-.11,.04,.08]} scale={[.1,.28,.08]} color="#474843" rotation={[0,0,.3]} radius={.035}/>
-    <Box position={[.11,.04,.08]} scale={[.1,.28,.08]} color="#474843" rotation={[0,0,-.3]} radius={.035}/>
+function LeafMark({ position, scale = 1, color = "#6f8f55", rotation = 0 }: { position: V3; scale?: number; color?: string; rotation?: number }) {
+  return <group position={position} rotation={[0,0,rotation]} scale={scale}>
+    <mesh scale={[1,.62,1]}><circleGeometry args={[.09,24]}/><meshStandardMaterial color={color} roughness={.5} polygonOffset polygonOffsetFactor={-4}/></mesh>
+    <mesh position={[0,0,.001]}><planeGeometry args={[.15,.012]}/><meshStandardMaterial color="#e9dfc2" polygonOffset polygonOffsetFactor={-5}/></mesh>
   </group>;
+}
+
+function SnowBinding({ y }: { y: number }) {
+  const plastic = <meshPhysicalMaterial color="#1d2024" roughness={.4} clearcoat={.5}/>;
+  return <group position={[0,y,.07]}>
+    <RoundedBox args={[.36,.2,.05]} radius={.02} smoothness={4} castShadow>{plastic}</RoundedBox>
+    {/* Highback: a curved shell rising off the heel edge */}
+    <mesh castShadow position={[0,-.02,.12]} rotation={[Math.PI / 2,0,0]}><cylinderGeometry args={[.17,.17,.2,24,1,true,-Math.PI * .5,Math.PI]}/><meshPhysicalMaterial color="#2a2e33" roughness={.45} side={THREE.DoubleSide}/></mesh>
+    {[-.05,.06].map(dy=><mesh key={dy} castShadow position={[0,dy,.13]} scale={[1,.45,1]}><torusGeometry args={[.15,.03,10,28,Math.PI]}/><meshPhysicalMaterial color="#3c4248" roughness={.5}/></mesh>)}
+  </group>;
+}
+
+function SkiBinding({ y }: { y: number }) {
+  return <group position={[0,y,.05]}>
+    <RoundedBox args={[.11,.16,.07]} radius={.02} smoothness={3} position={[0,.2,0]} castShadow><meshPhysicalMaterial color="#2a2c2e" roughness={.35} clearcoat={.6}/></RoundedBox>
+    <RoundedBox args={[.11,.22,.1]} radius={.025} smoothness={3} position={[0,-.2,.01]} castShadow><meshPhysicalMaterial color="#303336" roughness={.35} clearcoat={.6}/></RoundedBox>
+    <RoundedBox args={[.07,.24,.02]} radius={.008} smoothness={2} position={[0,0,-.015]}><meshStandardMaterial color="#8d9297" roughness={.3} metalness={.6}/></RoundedBox>
+  </group>;
+}
+
+function Hobbies() {
+  const surf = useMemo(() => profileShape(3.1, t => .41 * Math.pow(Math.sin(Math.PI * (.08 + t * .92)), .62) * (t < .12 ? .82 + t * 1.5 : 1)), []);
+  const snow = useMemo(() => profileShape(2.95, t => { const tip = Math.min(t, 1 - t); return .31 * (tip < .08 ? Math.sqrt(1 - Math.pow(1 - tip / .08, 2)) * .92 + .02 : 1 - .09 * Math.sin(Math.PI * (t - .08) / .84)); }), []);
+  const ski = useMemo(() => profileShape(2.9, t => { const nose = t > .9 ? Math.sqrt(Math.max(0, 1 - Math.pow((t - .9) / .1, 2))) : 1; const tail = t < .03 ? .7 + t * 10 : 1; return .055 * nose * tail * (1 - .12 * Math.sin(Math.PI * t)) + .004; }), []);
   return <group position={[-4.78,.06,-2.43]}>
-    <Board position={[-.78,1.6,0]} width={.84} height={3.24} depth={.1} color="#e4c590" rail="#65794f">
-      <Box position={[0,0,.17]} scale={[.055,2.62,.035]} color="#74865c" radius={.02}/><mesh position={[.02,1.02,.2]} scale={[1.25,.75,1]}><sphereGeometry args={[.12,14,9]}/><meshStandardMaterial color="#5d7a50"/></mesh>
-      <Box position={[0,-.76,.18]} scale={[.4,.09,.035]} color="#c98157" radius={.025}/><mesh position={[.18,-1.36,-.02]} rotation={[0,0,-.18]}><coneGeometry args={[.11,.36,3]}/><meshStandardMaterial color="#65794f"/></mesh>
-    </Board>
-    <group rotation={[0,0,-.025]}>
-      <Board position={[.1,1.53,.2]} width={.64} height={3.02} depth={.11} color="#587482" rail="#263d47" sidecut={.075}>
-        <Box position={[0,0,.18]} scale={[.08,2.5,.035]} color="#d5bf87" radius={.02}/>
-        <Box position={[0,1.08,.19]} scale={[.34,.22,.04]} color="#d17754" radius={.05}/>
-        <Box position={[0,-1.08,.19]} scale={[.3,.18,.04]} color="#789366" radius={.045}/>
-        {binding(0,-.5)}{binding(0,.5)}
-      </Board>
+    {/* Surfboard: cream deck, sage rail, stringer and fin, leaning on the wall */}
+    <group position={[-.8,1.62,-.05]} rotation={[-.07,0,.035]}>
+      <ShapedBoard shape={surf} thickness={.07} rail="#6f8f55" deck="#efe3c6" deckInset={.88} length={3.1} gloss={.85}>
+        <mesh position={[0,0,.072]}><planeGeometry args={[.012,2.7]}/><meshStandardMaterial color="#b7a27c" polygonOffset polygonOffsetFactor={-4}/></mesh>
+        <LeafMark position={[.1,.55,.075]} scale={1.5} rotation={.4}/>
+        <mesh castShadow position={[0,-1.25,-.1]} rotation={[0,Math.PI / 2,0]}><extrudeGeometry args={[(() => { const fin = new THREE.Shape(); fin.moveTo(0,0); fin.quadraticCurveTo(.05,.02,.2,-.03); fin.quadraticCurveTo(.08,.1,.0,.2); fin.lineTo(0,0); return fin; })(), { depth: .012, bevelEnabled: false }]}/><meshPhysicalMaterial color="#6f8f55" roughness={.4} clearcoat={.8}/></mesh>
+      </ShapedBoard>
     </group>
-    <Board position={[.84,1.48,.02]} width={.2} height={2.92} depth={.06} color="#c95f3f" rail="#6c3d31" sidecut={.018}>
-      <Box position={[0,-.18,.14]} scale={[.24,.24,.09]} color="#343633" radius={.04}/><Box position={[0,.17,.14]} scale={[.22,.22,.09]} color="#343633" radius={.04}/><Box position={[0,1.23,.12]} scale={[.12,.3,.06]} color="#efb768" radius={.05}/><Box position={[0,-1.22,.12]} scale={[.1,.24,.05]} color="#7d4937" radius={.04}/>
-    </Board>
-    <Board position={[1.14,1.48,.02]} width={.2} height={2.92} depth={.06} color="#d29a4c" rail="#765733" sidecut={.018}>
-      <Box position={[0,-.18,.14]} scale={[.24,.24,.09]} color="#343633" radius={.04}/><Box position={[0,.17,.14]} scale={[.22,.22,.09]} color="#343633" radius={.04}/><Box position={[0,1.23,.12]} scale={[.12,.3,.06]} color="#e98157" radius={.05}/><Box position={[0,-1.22,.12]} scale={[.1,.24,.05]} color="#86613b" radius={.04}/>
-    </Board>
-    {[1.44,1.68].map((x,i)=><group key={x} position={[x,1.45,-.03]} rotation={[0,0,i?.055:-.055]}><mesh castShadow><cylinderGeometry args={[.025,.025,2.7,10]}/><meshStandardMaterial color="#3b403b" roughness={.7}/></mesh><Box position={[0,1.4,0]} scale={[.11,.28,.1]} color="#343733" radius={.035}/><mesh position={[0,-1.35,0]} rotation={[Math.PI/2,0,0]}><torusGeometry args={[.13,.018,7,16]}/><meshStandardMaterial color="#3b403b"/></mesh></group>)}
+    {/* Snowboard: navy twin-tip with leaf prints and two real bindings */}
+    <group position={[.1,1.52,.18]} rotation={[-.06,0,-.03]}>
+      <ShapedBoard shape={snow} thickness={.05} rail="#151a20" deck="#26334a" deckInset={.94} length={2.95} gloss={.7}>
+        <LeafMark position={[-.08,1.0,.06]} scale={1.3} rotation={-.3}/>
+        <LeafMark position={[.1,-.05,.06]} scale={1.1} rotation={.5} color="#7fa060"/>
+        <LeafMark position={[-.06,-1.05,.06]} scale={1.3} rotation={.2}/>
+        <SnowBinding y={.48}/>
+        <SnowBinding y={-.48}/>
+      </ShapedBoard>
+    </group>
+    {/* Skis: red and blue pair with tip rise and bindings */}
+    {[{ x: .78, color: "#c4462f", deck: "#d9583c", rot: .03 }, { x: 1.05, color: "#2f4d84", deck: "#c4462f", rot: -.02 }].map(({ x, color, deck, rot }) =>
+      <group key={x} position={[x,1.48,-.04]} rotation={[-.1,0,rot]}>
+        <ShapedBoard shape={ski} thickness={.03} rail={color} deck={deck} deckInset={.82} tipRise={.11} length={2.9} gloss={.8}>
+          <SkiBinding y={-.15}/>
+        </ShapedBoard>
+      </group>)}
+    {[1.4,1.6].map((x,i)=><group key={x} position={[x,1.42,-.12]} rotation={[0,0,i?.07:-.04]}><mesh castShadow><cylinderGeometry args={[.016,.012,2.65,16]}/><meshPhysicalMaterial color="#2c3036" roughness={.35} metalness={.5}/></mesh><mesh castShadow position={[0,1.25,0]}><cylinderGeometry args={[.042,.036,.26,16]}/><meshPhysicalMaterial color="#1f2226" roughness={.6}/></mesh><mesh position={[0,1.4,0]} rotation={[0,0,Math.PI/2]}><torusGeometry args={[.05,.008,6,16]}/><meshStandardMaterial color="#2a2d31"/></mesh><mesh position={[0,-1.15,0]} rotation={[Math.PI/2,0,0]}><torusGeometry args={[.09,.012,10,30]}/><meshStandardMaterial color="#2c3036"/></mesh><mesh position={[0,-1.15,0]} rotation={[Math.PI/2,0,0]}>{[0,1,2,3].map(k=><mesh key={k} rotation={[0,0,k*Math.PI/4]}><boxGeometry args={[.18,.006,.006]}/><meshStandardMaterial color="#2c3036"/></mesh>)}</mesh></group>)}
   </group>;
 }
 
@@ -815,6 +1244,8 @@ function useReducedMotionRef() {
   }, []);
   return reducedMotion;
 }
+
+const WISPS = 5;
 
 function CoffeeSteam() {
   const wisps = useRef<Array<THREE.Sprite | null>>([]);
@@ -842,16 +1273,21 @@ function CoffeeSteam() {
   useFrame(({clock}) => {
     if (reducedMotion.current) return;
     const gust = windEnvelope(performance.now() / 1000 - gustStartedAt.current);
+    const t = clock.elapsedTime;
     wisps.current.forEach((sprite,index) => {
       if (!sprite) return;
-      const phase = (clock.elapsedTime * .19 + index * .34) % 1;
-      sprite.position.set(-2.43 + Math.sin(clock.elapsedTime * .85 + index * 2.1) * (.035 + phase * .075) + gust * (.34 + index * .06), 1.94 + phase * .82 - gust * phase * .12, 2.68 + Math.sin(clock.elapsedTime * .42 + index) * .025 + gust * .48);
-      const size = .22 + phase * .34;
-      sprite.scale.set(size * (.72 + gust * 1.05),size * (1 - gust * .24),1);
-      (sprite.material as THREE.SpriteMaterial).opacity = Math.sin(phase * Math.PI) * .2;
+      const phase = (t * .19 + index / WISPS) % 1;
+      // Wisps rise, widen and curl on two interfering sways, then dissolve; a gust bends the plume sideways.
+      const curl = Math.sin(t * .85 + index * 2.1 + phase * 4) * (.03 + phase * .09) + Math.sin(t * 1.7 + index) * .015 * phase;
+      sprite.position.set(-2.43 + curl + gust * (.34 + index * .04) * phase * 1.6, 1.94 + Math.pow(phase, .85) * .86 - gust * phase * .12, 2.68 + Math.cos(t * .42 + index + phase * 3) * .03 + gust * .48 * phase * 1.6);
+      const size = .18 + phase * .42;
+      sprite.scale.set(size * (.75 + gust * 1.05),size * (1.05 - gust * .24),1);
+      const material = sprite.material as THREE.SpriteMaterial;
+      material.rotation = index * 1.3 + t * (.12 + index * .03) * (index % 2 ? 1 : -1);
+      material.opacity = Math.pow(Math.sin(phase * Math.PI), 1.6) * Math.min(1, phase * 6) * .19;
     });
   });
-  return <group>{[0,1,2].map(index=><sprite key={index} ref={node => { wisps.current[index] = node; }} position={[-2.43,1.84 + index*.16,2.68]} scale={[.16,.22,1]}><spriteMaterial map={steamTexture} color="#fff0dc" transparent opacity={.08} depthWrite={false}/></sprite>)}</group>;
+  return <group>{Array.from({length: WISPS}, (_, index)=><sprite key={index} ref={node => { wisps.current[index] = node; }} position={[-2.43,1.84 + index*.12,2.68]} scale={[.16,.22,1]}><spriteMaterial map={steamTexture} color="#fff0dc" transparent opacity={0} depthWrite={false}/></sprite>)}</group>;
 }
 
 function DriftingLeaves() {
@@ -868,12 +1304,15 @@ function DriftingLeaves() {
   }, [leafTexture]);
   const leaves = useMemo(() => Array.from({length:7},(_,index) => ({
     phase: (index * .137 + .08) % 1,
-    speed: .018 + (index % 4) * .0035,
-    y: 1.05 + (index % 5) * .62,
-    z: -2.6 + (index % 4) * 1.72,
+    speed: .034 + (index % 4) * .006,
+    x: -1.9 + (index * 1.37) % 3.8,
+    drift: (index % 2 ? 1 : -1) * (.6 + (index % 3) * .5),
+    height: 3.4 + (index % 3) * .45,
+    swing: 1.25 + (index % 4) * .22,
     scale: .5 + (index % 3) * .13,
     color: ["#ffffff","#f0cea0","#d8e2bf","#ffc59d"][index % 4],
   })), []);
+  const materials = useRef<Array<THREE.MeshStandardMaterial | null>>([]);
   useEffect(() => {
     progress.current = leaves.map((leaf) => leaf.phase);
   }, [leaves]);
@@ -883,17 +1322,26 @@ function DriftingLeaves() {
   useFrame(({clock}, delta) => {
     if (reducedMotion.current) return;
     const gust = windEnvelope(performance.now() / 1000 - gustStartedAt.current);
+    const t = clock.elapsedTime;
     leaves.forEach((leaf,index) => {
       const group = leafRefs.current[index];
       if (!group) return;
-      progress.current[index] = ((progress.current[index] ?? leaf.phase) + leaf.speed * delta * (1 + gust * 13)) % 1;
+      progress.current[index] = ((progress.current[index] ?? leaf.phase) + leaf.speed * Math.min(delta, .05) * (1 + gust * 6)) % 1;
       const travel = progress.current[index];
-      group.position.set(-6.4 + travel * 13.1, leaf.y + Math.sin(clock.elapsedTime * (.7 + gust * 3.5) + index * 1.8) * (.32 + gust * .2), leaf.z + Math.sin(clock.elapsedTime * .24 + index) * .34 + gust * (1.15 + index % 3 * .18));
-      group.rotation.set(clock.elapsedTime * (.38 + index*.025 + gust * 2.8), Math.sin(clock.elapsedTime*(.46 + gust * 2.4)+index)*1.25, clock.elapsedTime * (.58 + index*.035 + gust * 3.2));
+      // Leaves blow in through the balcony door and settle toward the floor with a falling-leaf
+      // pendulum: they swing side to side, lift a little at each end of the swing, and tilt with it.
+      const swing = Math.sin(t * leaf.swing + index * 1.9);
+      const lift = Math.abs(Math.cos(t * leaf.swing + index * 1.9));
+      const z = -5.6 + travel * 9.2 + gust * travel * 1.2;
+      const y = leaf.height - travel * (leaf.height - .55) + lift * .12 + Math.sin(travel * Math.PI) * gust * .6;
+      group.position.set(leaf.x + leaf.drift * travel + swing * (.32 + gust * .2), y, z);
+      group.rotation.set(-1.1 + swing * .55 + gust * Math.sin(t * 6 + index) * .6, t * (.25 + index * .03) + gust * t * .8, swing * .7);
+      const material = materials.current[index];
+      if (material) material.opacity = Math.min(1, travel * 12) * Math.min(1, (1 - travel) * 6);
     });
   });
-  return <group>{leaves.map((leaf,index)=><group key={index} ref={node => { leafRefs.current[index] = node; }} position={[-6.4+leaf.phase*13.1,leaf.y,leaf.z]} scale={leaf.scale}>
-    <mesh rotation={[0,0,.55]} scale={[.78,1,1]}><planeGeometry args={[.48,.54]}/><meshBasicMaterial map={leafTexture} color={leaf.color} transparent alphaTest={.08} depthWrite={false} toneMapped={false} side={THREE.DoubleSide}/></mesh>
+  return <group>{leaves.map((leaf,index)=><group key={index} ref={node => { leafRefs.current[index] = node; }} position={[leaf.x,leaf.height,-5.6]} scale={leaf.scale}>
+    <mesh rotation={[0,0,.55]} scale={[.78,1,1]}><planeGeometry args={[.48,.54]}/><meshStandardMaterial ref={node => { materials.current[index] = node; }} map={leafTexture} color={leaf.color} transparent alphaTest={.08} depthWrite={false} roughness={.6} side={THREE.DoubleSide}/></mesh>
   </group>)}</group>;
 }
 
@@ -910,20 +1358,38 @@ function WindResponsiveProps() {
   useEffect(() => {
     if (windGust > 0) gustStartedAt.current = performance.now() / 1000;
   }, [windGust]);
+  const geometry = useMemo(() => new THREE.PlaneGeometry(.52, .34, 16, 8), []);
+  const bendUniforms = useMemo(() => papers.map(() => ({ curl: { value: 0 }, ripple: { value: 0 }, time: { value: 0 } })), [papers]);
+  const bendShader = useMemo(() => bendUniforms.map(uniforms => (shader: THREE.WebGLProgramParametersWithUniforms) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = `uniform float curl; uniform float ripple; uniform float time;\n${shader.vertexShader}`.replace(
+      "#include <begin_vertex>",
+      // The sheet curls along its length and a travelling ripple runs across it while airborne.
+      `#include <begin_vertex>\n      transformed.z += curl * (position.x * position.x) * 3.2 + ripple * sin(position.x * 14.0 - time * 11.0) * .012 * (position.x + .26);`,
+    );
+  }), [bendUniforms]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
   useFrame(({ clock }) => {
     const gustAge = performance.now() / 1000 - gustStartedAt.current;
     const gust = reducedMotion.current ? 0 : windEnvelope(gustAge);
     const normalized = THREE.MathUtils.clamp(gustAge / 3.4, 0, 1);
+    const t = clock.elapsedTime;
     papers.forEach((paper,index) => {
       const group = paperRefs.current[index];
       if (!group) return;
-      const flutter = Math.sin(clock.elapsedTime * (9 + index * 1.7) + index) * gust;
-      group.position.set(paper.position[0] + gust * paper.travel[0], paper.position[1] + Math.sin(normalized * Math.PI) * gust * (.3 + index * .07), paper.position[2] + gust * paper.travel[1]);
+      // Layered sines read as turbulent air rather than one metronomic wobble.
+      const flutter = (Math.sin(t * (9 + index * 1.7) + index) * .55 + Math.sin(t * (5.3 + index) + index * 2.3) * .3 + Math.sin(t * 13.7 + index * 4.1) * .15) * gust;
+      const arc = Math.sin(normalized * Math.PI);
+      group.position.set(paper.position[0] + gust * paper.travel[0], paper.position[1] + arc * gust * (.3 + index * .07), paper.position[2] + gust * paper.travel[1]);
       group.rotation.set(-Math.PI / 2 + flutter * .42, paper.rotation + gust * (.35 + index * .14), flutter * .32);
+      const uniforms = bendUniforms[index];
+      uniforms.curl.value = gust * (.35 + flutter * .25);
+      uniforms.ripple.value = gust;
+      uniforms.time.value = t;
     });
   });
   return <group>{papers.map((paper,index)=><group key={index} ref={node => { paperRefs.current[index] = node; }} position={paper.position} rotation={[-Math.PI/2,paper.rotation,0]}>
-    <mesh castShadow><planeGeometry args={[.52,.34]}/><meshStandardMaterial color={paper.color} roughness={.92} side={THREE.DoubleSide}/></mesh>
+    <mesh castShadow geometry={geometry}><meshStandardMaterial color={paper.color} roughness={.92} side={THREE.DoubleSide} onBeforeCompile={bendShader[index]} customProgramCacheKey={() => "paper-bend-v1"}/></mesh>
     <mesh position={[.02,.03,.004]}><planeGeometry args={[.28,.025]}/><meshBasicMaterial color="#a98561" transparent opacity={.38}/></mesh>
     <mesh position={[-.04,-.04,.004]}><planeGeometry args={[.34,.018]}/><meshBasicMaterial color="#8f775e" transparent opacity={.26}/></mesh>
   </group>)}</group>;
@@ -939,22 +1405,35 @@ function DistantBirds() {
     {phase:.55,y:4.35,speed:.014,scale:.46},
     {phase:.76,y:3.9,speed:.017,scale:.52},
   ],[]);
+  const wing = useMemo(() => {
+    // Tapered, slightly swept wing with the pivot at the shoulder.
+    const shape = new THREE.Shape();
+    shape.moveTo(0, .012); shape.quadraticCurveTo(.09, .03, .2, -.01); shape.quadraticCurveTo(.1, -.008, 0, -.018); shape.lineTo(0, .012);
+    return new THREE.ShapeGeometry(shape, 8);
+  }, []);
+  useEffect(() => () => wing.dispose(), [wing]);
   useFrame(({clock}) => {
     if (reducedMotion.current) return;
+    const t = clock.elapsedTime;
     birds.forEach((bird,index) => {
       const group = birdRefs.current[index];
       if (!group) return;
-      const progress = (bird.phase + clock.elapsedTime * bird.speed) % 1;
+      const progress = (bird.phase + t * bird.speed) % 1;
       group.position.x = -4.65 + progress * 9.3;
-      group.position.y = bird.y + Math.sin(clock.elapsedTime * .34 + index) * .08;
-      const flap = Math.sin(clock.elapsedTime * (4.2 + index*.3) + index) * .26;
-      group.children[0].rotation.z = .28 + flap;
-      group.children[1].rotation.z = -.28 - flap;
+      // Birds alternate a burst of flaps with a glide, rising while they flap and sinking gently in the glide.
+      const cycle = (t * .32 + index * .37) % 1;
+      const flapping = THREE.MathUtils.smoothstep(cycle, 0, .08) * (1 - THREE.MathUtils.smoothstep(cycle, .45, .55));
+      group.position.y = bird.y + Math.sin(t * .34 + index) * .06 + Math.sin(cycle * Math.PI * 2) * .05;
+      group.rotation.z = Math.sin(t * .5 + index * 2) * .12;
+      const flap = Math.sin(t * (7.5 + index * .4) + index) * .55 * flapping + (1 - flapping) * .12;
+      group.children[0].rotation.z = .1 + flap;
+      group.children[1].rotation.z = -.1 - flap;
     });
   });
-  return <group>{birds.map((bird,index)=><group key={index} ref={node => { birdRefs.current[index] = node; }} position={[-4.65+bird.phase*9.3,bird.y,-4.28]} scale={bird.scale}>
-    <mesh position={[-.075,0,0]} rotation={[0,0,.28]}><planeGeometry args={[.18,.045]}/><meshBasicMaterial color="#4b443b" transparent opacity={.72} side={THREE.DoubleSide}/></mesh>
-    <mesh position={[.075,0,0]} rotation={[0,0,-.28]}><planeGeometry args={[.18,.045]}/><meshBasicMaterial color="#4b443b" transparent opacity={.72} side={THREE.DoubleSide}/></mesh>
+  return <group>{birds.map((bird,index)=><group key={index} ref={node => { birdRefs.current[index] = node; }} position={[-4.65+bird.phase*9.3,bird.y,-4.28]} scale={bird.scale * 1.15}>
+    <mesh geometry={wing} scale={[-1,1,1]}><meshBasicMaterial color="#4b443b" transparent opacity={.72} side={THREE.DoubleSide}/></mesh>
+    <mesh geometry={wing}><meshBasicMaterial color="#4b443b" transparent opacity={.72} side={THREE.DoubleSide}/></mesh>
+    <mesh scale={[.045,.016,.016]}><sphereGeometry args={[1,10,6]}/><meshBasicMaterial color="#4b443b" transparent opacity={.72}/></mesh>
   </group>)}</group>;
 }
 
@@ -966,15 +1445,15 @@ function HobbyDetails() {
   return null;
 }
 
-export default function Room({ activeFocus, onFocus, windGust = 0, projectTheatre = false }: { activeFocus: FocusName; onFocus: (name: FocusName) => void; windGust?: number; projectTheatre?: boolean }) {
+export default function Room({ activeFocus, onFocus, windGust = 0, projectTheatre = false, onSunMesh }: { activeFocus: FocusName; onFocus: (name: FocusName) => void; windGust?: number; projectTheatre?: boolean; onSunMesh?: (mesh: THREE.Mesh | null) => void }) {
   return <SurfaceTextureProvider><WindGustContext.Provider value={windGust}><ProjectTheatreContext.Provider value={projectTheatre}><group position={[0,-1.2,0]}>
     <Architecture/>
     <LandscapeDepth/>
-    <CinematicExteriorBackdrop/>
-    <BalconyDetails/>
+    <CinematicExteriorBackdrop onSunMesh={onSunMesh}/>
     <WallDetails/>
     <ShelfAccents/>
-    <FurnitureAsset name="rug_oval_A" position={[-.15,.075,1.28]} rotation={[0,.03,0]} scale={[2.35,1,1.85]}/>
+    <StringLights/>
+    <RoundRug position={[-.15,.1,1.45]} radius={2.75}/>
     <group position={[.15,0,.45]} scale={[1.08,1,1]}>
       <group position={[-.15,0,.15]} scale={[1.15,1,1.15]}>
         <CentralTable active={activeFocus} onFocus={onFocus}/>
@@ -985,7 +1464,7 @@ export default function Room({ activeFocus, onFocus, windGust = 0, projectTheatr
     <CozyCat position={[-4.42,.72,.94]} rotation={[0,.08,0]} scale={.6}/>
     <LoungeDetails/>
     <Workstation active={activeFocus} onFocus={onFocus}/>
-    <FurnitureAsset name="lamp_table" position={[2.45,1.08,-2.0]} rotation={[0,-.16,0]} scale={[.72,.72,.72]}/>
+    <ArchitectLamp position={[2.5,1.13,-2.35]} rotation={[0,.5,0]}/>
     <FloorDetails/>
     <MusicStation/>
     <RoomAccents/>
@@ -994,5 +1473,6 @@ export default function Room({ activeFocus, onFocus, windGust = 0, projectTheatr
     <Plant position={[4.95,.05,-3.5]} scale={1.1}/>
     <AtmosphericStoryMotion/>
     <WarmDust/>
+    <Fireflies/>
   </group></ProjectTheatreContext.Provider></WindGustContext.Provider></SurfaceTextureProvider>;
 }

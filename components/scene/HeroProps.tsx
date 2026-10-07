@@ -145,10 +145,10 @@ export function CoffeeMug() {
     decal.setIndex(indices);
     decal.computeVertexNormals();
 
-    const ceramicMaterial = new THREE.MeshStandardMaterial({ map: ceramicMap, roughness: .34, metalness: 0 });
-    const handleMaterial = new THREE.MeshStandardMaterial({ color: "#87966e", roughness: .34 });
-    const rimMaterial = new THREE.MeshStandardMaterial({ color: "#e8d8ad", roughness: .27 });
-    const coffeeMaterial = new THREE.MeshPhysicalMaterial({ color: "#2d190e", roughness: .48, specularIntensity: .18, envMapIntensity: .06 });
+    const ceramicMaterial = new THREE.MeshPhysicalMaterial({ map: ceramicMap, roughness: .42, metalness: 0, clearcoat: .9, clearcoatRoughness: .12 });
+    const handleMaterial = new THREE.MeshPhysicalMaterial({ color: "#87966e", roughness: .42, clearcoat: .9, clearcoatRoughness: .12 });
+    const rimMaterial = new THREE.MeshPhysicalMaterial({ color: "#e8d8ad", roughness: .3, clearcoat: .9, clearcoatRoughness: .1 });
+    const coffeeMaterial = new THREE.MeshPhysicalMaterial({ color: "#2d190e", roughness: .16, specularIntensity: .45, envMapIntensity: .35 });
     const meniscusMaterial = new THREE.MeshStandardMaterial({ color: "#8f653a", roughness: .32, envMapIntensity: .2 });
     const coasterMaterial = new THREE.MeshStandardMaterial({ color: "#b98353", roughness: .81 });
     const decalMaterial = new THREE.MeshStandardMaterial({ map: bearMap, transparent: true, alphaTest: .1, roughness: .4, depthWrite: false });
@@ -286,8 +286,8 @@ export function ContactPhone() {
     const port = new THREE.BoxGeometry(.057, .011, .004);
     const speaker = new THREE.SphereGeometry(.007, 8, 6);
     const screenTexture = canvasTexture(400, 700, paintContactScreen);
-    const bodyMaterial = new THREE.MeshStandardMaterial({ color: "#91a56c", roughness: .55 });
-    const bezelMaterial = new THREE.MeshStandardMaterial({ color: "#182125", roughness: .25 });
+    const bodyMaterial = new THREE.MeshPhysicalMaterial({ color: "#91a56c", roughness: .5, sheen: .4, sheenRoughness: .6, sheenColor: new THREE.Color("#e8f0d0") });
+    const bezelMaterial = new THREE.MeshPhysicalMaterial({ color: "#182125", roughness: .2, clearcoat: 1, clearcoatRoughness: .05 });
     const buttonMaterial = new THREE.MeshStandardMaterial({ color: "#627d4d", roughness: .54 });
     const portMaterial = new THREE.MeshStandardMaterial({ color: "#283827", roughness: .8 });
     const screenMaterial = new THREE.MeshBasicMaterial({ map: screenTexture, color: "#e4e9dc", toneMapped: false });
