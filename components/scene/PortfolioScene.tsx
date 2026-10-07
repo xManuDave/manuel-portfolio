@@ -17,7 +17,7 @@ import ProjectViewer from "./ProjectViewer";
 import { ProjectTheatreHUD, ProjectTheatreScene } from "./ProjectTheatre";
 import { ROI_DEMO, type ProjectId } from "@/lib/project-theatre";
 import WholesomeQuote from "./WholesomeQuote";
-import { installRenderLookShaderChunks, RenderPostFX, WindowLightShafts } from "./RenderLook";
+import { installRenderLookShaderChunks, RenderPostFX, SunFlare, WindowLightShafts } from "./RenderLook";
 
 RectAreaLightUniformsLib.init();
 installRenderLookShaderChunks();
@@ -27,10 +27,12 @@ gsap.ticker.lagSmoothing(0);
 type Shot = { position: [number, number, number]; target: [number, number, number] };
 
 const OBJECT_STAGE_SHOT: Shot = { position: [-.55, 3.25, 8.1], target: [0, 1.7, 2.0] };
+// Opening crane: starts high and wide on the sunset, then settles into the room as the intro lifts.
+const INTRO_SHOT: Shot = { position: [-.2, 6.4, 15.6], target: [0, 2.7, -4.5] };
 const MONITOR_ALIGNMENT_SHOT: Shot = { position: [3.39, 1.7, 3.0], target: [3.39, .94, -2.15] };
 
 const SHOTS: Record<FocusName, Shot> = {
-  home: { position: [-0.5, 5.3, 10.0], target: [0.1, 0.85, -1.0] },
+  home: { position: [-1.05, 4.28, 10.7], target: [0, 1.08, -0.52] },
   projects: OBJECT_STAGE_SHOT,
   about: OBJECT_STAGE_SHOT,
   contact: OBJECT_STAGE_SHOT,
@@ -40,10 +42,10 @@ const SHOTS: Record<FocusName, Shot> = {
 function RoomEnvironment() {
   return (
     <Environment background={false} frames={1} resolution={256} environmentIntensity={0.55}>
-      <Lightformer form="rect" intensity={2.5} color="#ffd6a4" position={[0, 3.4, -6]} rotation={[0, 0, 0]} scale={[6, 4.5, 1]} />
-      <Lightformer form="rect" intensity={1.25} color="#fff2df" position={[-3, 4.5, 6]} rotation={[0, Math.PI, 0]} scale={[8, 5, 1]} />
-      <Lightformer form="rect" intensity={0.6} color="#dce6ec" position={[6, 3, 2]} rotation={[0, -Math.PI / 2, 0]} scale={[5, 4, 1]} />
-      <Lightformer form="ring" intensity={0.9} color="#f4eee2" position={[0, 8, 2]} rotation={[Math.PI / 2, 0, 0]} scale={3.5} />
+      <Lightformer form="rect" intensity={3.2} color="#ffa866" position={[0, 2.6, -6]} rotation={[0, 0, 0]} scale={[10, 3.5, 1]} />
+      <Lightformer form="rect" intensity={1.05} color="#ffd8c4" position={[-3, 4.5, 6]} rotation={[0, Math.PI, 0]} scale={[8, 5, 1]} />
+      <Lightformer form="rect" intensity={0.8} color="#a9a3e0" position={[6, 3, 2]} rotation={[0, -Math.PI / 2, 0]} scale={[5, 4, 1]} />
+      <Lightformer form="ring" intensity={0.7} color="#f6b8a8" position={[0, 8, 2]} rotation={[Math.PI / 2, 0, 0]} scale={3.5} />
     </Environment>
   );
 }
@@ -57,13 +59,13 @@ function WarmSceneShaders() {
   return null;
 }
 
-// Same low sunrise direction as before, pulled back so the new ceiling stays inside the shadow frustum.
-const SUN_POSITION: [number, number, number] = [-4.42, 11.21, -10.3];
+// Low sunset sun sitting just above the lake: long raking shadows reach toward the camera.
+const SUN_POSITION: [number, number, number] = [-1.9, 5.0, -11.5];
 const SUN_TARGET: [number, number, number] = [0, 0.5, 1.15];
 
 function WindowLighting({ compact, theatre = false }: { compact: boolean; theatre?: boolean }) {
   const sunlight = useRef<THREE.DirectionalLight>(null);
-  useFrame((_,dt)=>{if(sunlight.current)sunlight.current.intensity=THREE.MathUtils.damp(sunlight.current.intensity,theatre?1.15:5.2,3,dt);});
+  useFrame((_,dt)=>{if(sunlight.current)sunlight.current.intensity=THREE.MathUtils.damp(sunlight.current.intensity,theatre?1.15:6.4,3,dt);});
   const tableTarget = useMemo(() => {
     const target = new THREE.Object3D();
     target.position.set(...SUN_TARGET);
@@ -71,29 +73,30 @@ function WindowLighting({ compact, theatre = false }: { compact: boolean; theatr
   }, []);
   return <>
     <primitive object={tableTarget} />
-    {/* Low, slightly cool fill keeps shadowed sides readable while the warm sun carries the form. */}
-    <ambientLight intensity={0.12} color="#ffe6c8" />
-    <hemisphereLight args={["#ffe2bd", "#9a6a45", 0.75]} />
-    <rectAreaLight position={[0, 3.05, -3.85]} rotation={[0, Math.PI, 0]} width={5.6} height={4.1} intensity={2.6} color="#ffcf92" />
-    {/* A broad reflected fill lets the front-facing wood, paper and ceramic retain their own colors. */}
-    <rectAreaLight position={[-2.5, 4.5, 5.4]} rotation={[-.35, 0, 0]} width={8} height={5} intensity={.55} color="#ffe9cc" />
+    {/* Dusk fill: rosy sky above, ember-warm bounce below, so backlit props still read from the front. */}
+    <ambientLight intensity={0.06} color="#c2b0dc" />
+    <hemisphereLight args={["#d6a6c0", "#4a2e34", 0.32]} />
+    <rectAreaLight position={[0, 3.05, -3.85]} rotation={[0, Math.PI, 0]} width={9} height={4.1} intensity={2.3} color="#ff9f5c" />
+    {/* The eastern sky behind the camera is already blue-violet: a cool front fill against the hot backlight. */}
+    <rectAreaLight position={[-2.5, 4.5, 5.4]} rotation={[-.35, 0, 0]} width={8} height={5} intensity={.55} color="#8f92d8" />
     {/* Warm bounce from the sunlit floor back onto the cream walls and ceiling. */}
-    <rectAreaLight position={[0, -1.0, -1.0]} rotation={[Math.PI / 2, 0, 0]} width={9} height={6} intensity={.6} color="#ffc68a" />
-    <rectAreaLight position={[4.9, 3.5, .2]} rotation={[0, -Math.PI / 2, 0]} width={4.2} height={3.6} intensity={.5} color="#d4e2ec" />
+    <rectAreaLight position={[0, -1.0, -1.0]} rotation={[Math.PI / 2, 0, 0]} width={9} height={6} intensity={.4} color="#ff9d5e" />
+    {/* Cool twilight from the open side: the complementary violet that makes the sunset glow read hotter. */}
+    <rectAreaLight position={[6.4, 3.5, 1.2]} rotation={[0, Math.PI / 2, 0]} width={5} height={4} intensity={.9} color="#8f8fd6" />
     <directionalLight
       ref={sunlight}
       castShadow
       target={tableTarget}
       position={SUN_POSITION}
-      intensity={5.2}
-      color="#ffc480"
+      intensity={6.4}
+      color="#ff9b52"
       shadow-mapSize={[compact ? 1024 : 2048, compact ? 1024 : 2048]}
       shadow-camera-left={-7.5}
       shadow-camera-right={7.5}
       shadow-camera-top={7}
       shadow-camera-bottom={-7}
-      shadow-camera-near={4}
-      shadow-camera-far={28}
+      shadow-camera-near={2}
+      shadow-camera-far={26}
       shadow-bias={-0.00008}
       shadow-normalBias={0.018}
     />
@@ -105,13 +108,14 @@ function WindowLighting({ compact, theatre = false }: { compact: boolean; theatr
   </>;
 }
 
-function CinematicCamera({ focus, compact }: { focus: FocusName; compact: boolean }) {
+function CinematicCamera({ focus, compact, entered }: { focus: FocusName; compact: boolean; entered: boolean }) {
   const { camera, gl, pointer } = useThree();
   const pose = useRef({
-    px: SHOTS.home.position[0], py: SHOTS.home.position[1], pz: SHOTS.home.position[2],
-    tx: SHOTS.home.target[0], ty: SHOTS.home.target[1], tz: SHOTS.home.target[2],
-    parallax: 1, lens: 0,
+    px: INTRO_SHOT.position[0], py: INTRO_SHOT.position[1], pz: INTRO_SHOT.position[2],
+    tx: INTRO_SHOT.target[0], ty: INTRO_SHOT.target[1], tz: INTRO_SHOT.target[2],
+    parallax: 0, lens: -5, roll: 0,
   });
+  const introPlayed = useRef(false);
   const previousFocus = useRef<FocusName>("home");
   const drag = useRef({ active: false, x: 0, y: 0, yaw: 0, pitch: 0 });
   const orbit = useRef({ yaw: 0, pitch: 0 });
@@ -148,25 +152,39 @@ function CinematicCamera({ focus, compact }: { focus: FocusName; compact: boolea
     drag.current.active = false;
     if (focus !== "home") pose.current.parallax = 0;
     if (reducedMotion.current) {
+      introPlayed.current = true;
       gsap.set(pose.current, {
         px: shot.position[0], py: shot.position[1], pz: shot.position[2],
         tx: shot.target[0], ty: shot.target[1], tz: shot.target[2],
-        parallax: focus === "home" ? 1 : 0, lens: 0,
+        parallax: focus === "home" ? 1 : 0, lens: 0, roll: 0,
       });
       return;
+    }
+    if (focus === "home" && !introPlayed.current) {
+      if (!entered) return;
+      introPlayed.current = true;
+      // A slow crane down from the sunset into the room, the long lens easing back to the hero framing.
+      const timeline = gsap.timeline();
+      timeline.to(pose.current, { px: shot.position[0], pz: shot.position[2], tx: shot.target[0], tz: shot.target[2], duration: 3.6, ease: "power2.inOut" }, 0)
+      .to(pose.current, { py: shot.position[1], ty: shot.target[1], duration: 3.6, ease: "power3.inOut" }, 0)
+      .to(pose.current, { lens: 0, duration: 3.2, ease: "sine.inOut" }, .3)
+      .to(pose.current, { parallax: 1, duration: 1.2, ease: "sine.out" }, 2.6);
+      return () => { timeline.kill(); };
     }
     if (focus === "home") {
       const tween = gsap.to(pose.current, {
         px: shot.position[0], py: shot.position[1], pz: shot.position[2],
         tx: shot.target[0], ty: shot.target[1], tz: shot.target[2],
-        parallax: 1, lens: 0,
+        parallax: 1, lens: 0, roll: 0,
         duration: 1.45, ease: "power3.inOut", overwrite: "auto",
       });
       return () => { tween.kill(); };
     }
     if (focus !== "skills") {
       const timeline = gsap.timeline();
-      timeline.to(pose.current, { lens: 2.2, duration: CINEMATIC.charge, ease: "power2.inOut" })
+      // A slight dutch tilt builds with the charge and resolves as the camera lands: the move feels hand-operated.
+      timeline.to(pose.current, { lens: 2.2, roll: .022, duration: CINEMATIC.charge, ease: "power2.inOut" })
+      .to(pose.current, { roll: 0, duration: CINEMATIC.reveal - CINEMATIC.charge, ease: "sine.inOut" }, CINEMATIC.charge)
       .to(pose.current, {
         px: shot.position[0], py: shot.position[1], pz: shot.position[2],
         tx: shot.target[0], ty: shot.target[1], tz: shot.target[2],
@@ -186,7 +204,7 @@ function CinematicCamera({ focus, compact }: { focus: FocusName; compact: boolea
       lens: -3, duration: CINEMATIC.monitorTravel, ease: "power3.inOut",
     });
     return () => { timeline.kill(); };
-  }, [camera, focus, reduceCameraMotion]);
+  }, [camera, focus, reduceCameraMotion, entered]);
 
   useEffect(() => {
     const element = gl.domElement;
@@ -216,9 +234,9 @@ function CinematicCamera({ focus, compact }: { focus: FocusName; compact: boolea
     };
   }, [focus, gl]);
 
-  useFrame(() => {
+  useFrame(({ clock }) => {
     if (camera instanceof THREE.PerspectiveCamera) {
-      const fov = (compact ? 48 : 41) + pose.current.lens;
+      const fov = (compact ? 48 : 44) + pose.current.lens;
       if (Math.abs(camera.fov - fov) > .001) { camera.fov = fov; camera.updateProjectionMatrix(); }
     }
     const scratch = vectors.current;
@@ -230,12 +248,17 @@ function CinematicCamera({ focus, compact }: { focus: FocusName; compact: boolea
       const offset = scratch.offset.copy(basePosition).sub(target).applyAxisAngle(scratch.up, orbit.current.yaw + mx * 0.1);
       const right = scratch.right.crossVectors(offset, scratch.up).normalize();
       offset.applyAxisAngle(right, orbit.current.pitch - my * 0.08);
-      camera.position.copy(target).add(offset).add(scratch.parallax.set(mx, my, 0));
+      // A barely-there handheld drift keeps the hero shot alive while nobody touches it.
+      const t = clock.elapsedTime;
+      const drift = reducedMotion.current ? 0 : pose.current.parallax;
+      scratch.parallax.set(mx + Math.sin(t * .21) * .05 * drift, my + Math.sin(t * .17 + 1.3) * .03 * drift, Math.sin(t * .13) * .04 * drift);
+      camera.position.copy(target).add(offset).add(scratch.parallax);
       camera.lookAt(target.x + mx * 0.3, target.y + my * 0.15, target.z);
     } else {
       camera.position.set(pose.current.px, pose.current.py, pose.current.pz);
       camera.lookAt(target);
     }
+    if (pose.current.roll) camera.rotateZ(pose.current.roll);
   });
   return null;
 }
@@ -253,7 +276,7 @@ function IntroScreen({ onEnter }: { onEnter: () => void }) {
   };
   if (phase === "gone") return null;
   return <button type="button" className={`portfolio-intro${phase === "leaving" ? " is-leaving" : ""}`} onClick={enter} aria-label="Enter Manuel Strunz portfolio and start the room radio">
-    <span className="portfolio-intro-backdrop" aria-hidden="true" style={{ "--intro-backdrop": `url("${asset("/reference/current-homepage-reference-match-pass-68.png")}")` } as CSSProperties}/>
+    <span className="portfolio-intro-backdrop" aria-hidden="true" style={{ "--intro-backdrop": `url("${asset("/reference/current-homepage-sunset-pass-69.png")}")` } as CSSProperties}/>
     <span className="portfolio-intro-wash" aria-hidden="true"/>
     <span className="portfolio-intro-title" aria-hidden="true"><span>Manuel</span><span>Strunz</span></span>
     <span className="portfolio-intro-prompt"><i aria-hidden="true"/> Click anywhere to enter <small>Sound on</small></span>
@@ -269,6 +292,7 @@ export default function PortfolioScene() {
   const [windGust, setWindGust] = useState(0);
   const [windActive, setWindActive] = useState(false);
   const [entered, setEntered] = useState(false);
+  const [sunMesh, setSunMesh] = useState<THREE.Mesh | null>(null);
   const [theatre, setTheatre] = useState<{selected:ProjectId|null;sequence:number;startedAt:number;reading:boolean;investment:number}>({selected:null,sequence:0,startedAt:0,reading:false,investment:ROI_DEMO.investment});
   const accentAt = useRef(0);
   const audioContext = useRef<AudioContext | null>(null);
@@ -435,18 +459,19 @@ export default function PortfolioScene() {
 
   return (
     <div className="canvas-shell" data-focus={focus} data-panel-open={(visiblePanel !== null && visiblePanel !== "projects") || theatre.reading} data-project-stage={visiblePanel === "projects"} data-project={theatre.selected ?? "choose"} data-project-reading={theatre.reading} data-camera-phase={focus === "home" ? "overview" : visiblePanel ? "content" : focus === "skills" ? "screen-entry" : "object-focus"} data-wind-gust={windGust} data-wind-active={windActive} data-entered={entered}>
-      <Canvas aria-label="Interactive stylized workroom" shadows="soft" frameloop={entered && !theatre.reading ? "always" : "demand"} camera={{ position: SHOTS.home.position, fov: compact ? 48 : 41, near: 0.1, far: 80 }} dpr={compact ? [1, 1.2] : [1, 1.5]} gl={{ antialias: true, powerPreference: "high-performance", toneMapping: THREE.NoToneMapping, toneMappingExposure: 1.05 }}>
-        <color attach="background" args={["#d99558"]} />
-        <fog attach="fog" args={["#dcc2a4", 17, 38]} />
+      <Canvas aria-label="Interactive stylized workroom" shadows="soft" frameloop={entered && !theatre.reading ? "always" : "demand"} camera={{ position: INTRO_SHOT.position, fov: compact ? 48 : 44, near: 0.1, far: 80 }} dpr={compact ? [1, 1.2] : [1, 1.5]} gl={{ antialias: true, powerPreference: "high-performance", toneMapping: THREE.NoToneMapping, toneMappingExposure: 1.05 }}>
+        <color attach="background" args={["#c9714a"]} />
+        <fog attach="fog" args={["#c98a78", 24, 48]} />
         <WindowLighting compact={compact} theatre={visiblePanel === "projects"}/>
         <Suspense fallback={null}>
           <RoomEnvironment />
-          <Room activeFocus={focus} onFocus={selectFocus} windGust={windGust} projectTheatre={visiblePanel === "projects"}/>
+          <Room activeFocus={focus} onFocus={selectFocus} windGust={windGust} projectTheatre={visiblePanel === "projects"} onSunMesh={setSunMesh}/>
           {visiblePanel === "projects" && <ProjectTheatreScene {...theatre} compact={compact} onSelect={selectProject} onAccent={projectAccent}/>}
           <WarmSceneShaders />
         </Suspense>
-        <RenderPostFX compact={compact} />
-        <CinematicCamera focus={focus} compact={compact} />
+        <SunFlare sun={sunMesh} intensity={visiblePanel === "projects" ? .15 : 1} />
+        <RenderPostFX compact={compact} sun={sunMesh} />
+        <CinematicCamera focus={focus} compact={compact} entered={entered} />
       </Canvas>
       {focus === "home" && <div className="scene-callouts" aria-label="Scene objects">
         <span className="scene-callout hobbies-callout">Hobbies</span>

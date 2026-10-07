@@ -34,11 +34,16 @@ body { font-family: Inter, ui-sans-serif, system-ui, sans-serif; overflow: hidde
 .scene-status span { width: 6px; height: 6px; border-radius: 50%; background: #6c805e; box-shadow: 0 0 0 4px rgba(108,128,94,.14); }
 .hint { display: none; }
 .scene-callouts { position: absolute; z-index: 9; inset: 0; pointer-events: none; }
+/* Labels wait for the opening crane to settle so they never float over a moving shot. */
+.canvas-shell[data-entered="false"] .scene-callouts { opacity: 0; }
+.canvas-shell[data-entered="true"] .scene-callouts { animation: callouts-arrive .9s ease-out 3.3s both; }
+@keyframes callouts-arrive { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .canvas-shell[data-entered="true"] .scene-callouts { animation: none; } }
 .scene-callout { position: absolute; display: block; border: 1px solid rgba(255,255,255,.38); border-radius: 999px; padding: 10px 16px; background: rgba(57,43,31,.82); box-shadow: 0 8px 24px rgba(45,29,15,.2); color: #fff8e8; backdrop-filter: blur(8px); font: 600 15px/1 Inter,ui-sans-serif,system-ui,sans-serif; letter-spacing: .01em; white-space: nowrap; pointer-events: auto; }
 .scene-callout::after { content: ""; position: absolute; left: 50%; top: calc(100% + 7px); width: 8px; height: 8px; border-right: 2px solid rgba(255,248,230,.9); border-bottom: 2px solid rgba(255,248,230,.9); transform: translateX(-50%) rotate(45deg); filter: drop-shadow(0 2px 3px rgba(54,34,20,.25)); }
 button.scene-callout { cursor: pointer; transition: transform .18s ease, background .18s ease; }
 button.scene-callout:hover, button.scene-callout:focus-visible { background: rgba(57,43,31,.94); outline: 2px solid rgba(255,236,190,.72); outline-offset: 2px; transform: translateY(-2px); }
-.hobbies-callout { left: 17%; top: 30%; }
+.hobbies-callout { left: 20%; top: 31%; }
 .projects-callout { left: 34%; top: 57%; }
 .about-callout { left: 56%; top: 61%; }
 .contact-callout { left: 70%; top: 64%; }
