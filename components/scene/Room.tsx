@@ -346,47 +346,62 @@ function Plant({ position, scale = 1 }: { position: V3; scale?: number }) {
   return <StudioPlant position={position} scale={scale} gust={gust}/>;
 }
 
+const dustVertex = `
+attribute vec4 seed;
+uniform float time;
+uniform float pixelRatio;
+varying float vGlow;
+void main() {
+  // Each mote wanders on its own slow Lissajous path instead of the cloud moving as one block.
+  vec3 p = position;
+  p.x += sin(time * (.11 + seed.x * .09) + seed.y * 6.283) * .22;
+  p.y += sin(time * (.07 + seed.z * .06) + seed.x * 6.283) * .16 + mod(time * (.012 + seed.w * .01) + seed.y, 1.0) * .25;
+  p.z += cos(time * (.09 + seed.w * .08) + seed.z * 6.283) * .2;
+  vec4 mv = modelViewMatrix * vec4(p, 1.0);
+  gl_Position = projectionMatrix * mv;
+  // Motes glint as they turn, like real dust catching low sun.
+  vGlow = .35 + .65 * pow(.5 + .5 * sin(time * (.8 + seed.x * 1.6) + seed.w * 40.0), 3.0);
+  gl_PointSize = (2.2 + seed.z * 2.6) * pixelRatio * (9.0 / -mv.z);
+}`;
+
+const dustFragment = `
+uniform vec3 color;
+uniform float opacity;
+varying float vGlow;
+void main() {
+  float d = length(gl_PointCoord - .5) * 2.0;
+  float soft = smoothstep(1.0, 0.0, d);
+  gl_FragColor = vec4(color * soft * soft * vGlow * opacity, 1.0);
+}`;
+
 function WarmDust() {
-  const points = useRef<THREE.Points>(null);
-  const reducedMotion = useRef(false);
-  const count = 96;
-  const positions = useMemo(() => {
-    const values = new Float32Array(count * 3);
+  const material = useRef<THREE.ShaderMaterial>(null);
+  const reducedMotion = useReducedMotionRef();
+  const count = 140;
+  const { positions, seeds } = useMemo(() => {
+    const positions = new Float32Array(count * 3);
+    const seeds = new Float32Array(count * 4);
+    const rand = (n: number) => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
     for (let i = 0; i < count; i++) {
-      values[i * 3] = ((i * 37) % 100) / 10 - 5;
-      values[i * 3 + 1] = .55 + ((i * 53) % 38) / 10;
-      values[i * 3 + 2] = ((i * 29) % 70) / 10 - 3.7;
+      // Weight the motes toward the sunlit band between the balcony door and the desk.
+      const inBeam = i % 3 !== 0;
+      positions[i * 3] = inBeam ? -2 + rand(i) * 4.5 : -5.5 + rand(i) * 11;
+      positions[i * 3 + 1] = .5 + rand(i + 1000) * 4.4;
+      positions[i * 3 + 2] = inBeam ? -4 + rand(i + 2000) * 5.5 : -4 + rand(i + 2000) * 7.5;
+      seeds.set([rand(i + 3000), rand(i + 4000), rand(i + 5000), rand(i + 6000)], i * 4);
     }
-    return values;
+    return { positions, seeds };
   }, []);
-  // Round, soft-edged motes catch the sunbeams instead of reading as square pixels.
-  const mote = useMemo(() => {
-    const canvas = document.createElement("canvas");
-    canvas.width = canvas.height = 64;
-    const context = canvas.getContext("2d")!;
-    const gradient = context.createRadialGradient(32, 32, 0, 32, 32, 32);
-    gradient.addColorStop(0, "rgba(255,255,255,1)");
-    gradient.addColorStop(.35, "rgba(255,255,255,.55)");
-    gradient.addColorStop(1, "rgba(255,255,255,0)");
-    context.fillStyle = gradient;
-    context.fillRect(0, 0, 64, 64);
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    return texture;
-  }, []);
-  useEffect(() => () => mote.dispose(), [mote]);
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const update = () => { reducedMotion.current = media.matches; };
-    update(); media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
-  useFrame(({ clock }) => {
-    if (!points.current || reducedMotion.current) return;
-    points.current.rotation.y = Math.sin(clock.elapsedTime * .08) * .035;
-    points.current.position.y = Math.sin(clock.elapsedTime * .18) * .05;
+  const uniforms = useMemo(() => ({ time: { value: 0 }, pixelRatio: { value: 1 }, color: { value: new THREE.Color("#ffd9a0") }, opacity: { value: .55 } }), []);
+  useFrame(({ clock, gl }) => {
+    if (!material.current) return;
+    material.current.uniforms.pixelRatio.value = gl.getPixelRatio();
+    if (!reducedMotion.current) material.current.uniforms.time.value = clock.elapsedTime;
   });
-  return <points ref={points}><bufferGeometry><bufferAttribute attach="attributes-position" args={[positions, 3]} /></bufferGeometry><pointsMaterial map={mote} color="#ffdca0" size={.05} transparent opacity={.5} sizeAttenuation depthWrite={false} blending={THREE.AdditiveBlending} /></points>;
+  return <points frustumCulled={false}>
+    <bufferGeometry><bufferAttribute attach="attributes-position" args={[positions, 3]} /><bufferAttribute attach="attributes-seed" args={[seeds, 4]} /></bufferGeometry>
+    <shaderMaterial ref={material} uniforms={uniforms} vertexShader={dustVertex} fragmentShader={dustFragment} transparent depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false}/>
+  </points>;
 }
 
 function FloorBoards() {
@@ -1143,6 +1158,8 @@ function useReducedMotionRef() {
   return reducedMotion;
 }
 
+const WISPS = 5;
+
 function CoffeeSteam() {
   const wisps = useRef<Array<THREE.Sprite | null>>([]);
   const reducedMotion = useReducedMotionRef();
@@ -1169,16 +1186,21 @@ function CoffeeSteam() {
   useFrame(({clock}) => {
     if (reducedMotion.current) return;
     const gust = windEnvelope(performance.now() / 1000 - gustStartedAt.current);
+    const t = clock.elapsedTime;
     wisps.current.forEach((sprite,index) => {
       if (!sprite) return;
-      const phase = (clock.elapsedTime * .19 + index * .34) % 1;
-      sprite.position.set(-2.43 + Math.sin(clock.elapsedTime * .85 + index * 2.1) * (.035 + phase * .075) + gust * (.34 + index * .06), 1.94 + phase * .82 - gust * phase * .12, 2.68 + Math.sin(clock.elapsedTime * .42 + index) * .025 + gust * .48);
-      const size = .22 + phase * .34;
-      sprite.scale.set(size * (.72 + gust * 1.05),size * (1 - gust * .24),1);
-      (sprite.material as THREE.SpriteMaterial).opacity = Math.sin(phase * Math.PI) * .2;
+      const phase = (t * .19 + index / WISPS) % 1;
+      // Wisps rise, widen and curl on two interfering sways, then dissolve; a gust bends the plume sideways.
+      const curl = Math.sin(t * .85 + index * 2.1 + phase * 4) * (.03 + phase * .09) + Math.sin(t * 1.7 + index) * .015 * phase;
+      sprite.position.set(-2.43 + curl + gust * (.34 + index * .04) * phase * 1.6, 1.94 + Math.pow(phase, .85) * .86 - gust * phase * .12, 2.68 + Math.cos(t * .42 + index + phase * 3) * .03 + gust * .48 * phase * 1.6);
+      const size = .18 + phase * .42;
+      sprite.scale.set(size * (.75 + gust * 1.05),size * (1.05 - gust * .24),1);
+      const material = sprite.material as THREE.SpriteMaterial;
+      material.rotation = index * 1.3 + t * (.12 + index * .03) * (index % 2 ? 1 : -1);
+      material.opacity = Math.pow(Math.sin(phase * Math.PI), 1.6) * Math.min(1, phase * 6) * .19;
     });
   });
-  return <group>{[0,1,2].map(index=><sprite key={index} ref={node => { wisps.current[index] = node; }} position={[-2.43,1.84 + index*.16,2.68]} scale={[.16,.22,1]}><spriteMaterial map={steamTexture} color="#fff0dc" transparent opacity={.08} depthWrite={false}/></sprite>)}</group>;
+  return <group>{Array.from({length: WISPS}, (_, index)=><sprite key={index} ref={node => { wisps.current[index] = node; }} position={[-2.43,1.84 + index*.12,2.68]} scale={[.16,.22,1]}><spriteMaterial map={steamTexture} color="#fff0dc" transparent opacity={0} depthWrite={false}/></sprite>)}</group>;
 }
 
 function DriftingLeaves() {
@@ -1195,12 +1217,15 @@ function DriftingLeaves() {
   }, [leafTexture]);
   const leaves = useMemo(() => Array.from({length:7},(_,index) => ({
     phase: (index * .137 + .08) % 1,
-    speed: .018 + (index % 4) * .0035,
-    y: 1.05 + (index % 5) * .62,
-    z: -2.6 + (index % 4) * 1.72,
+    speed: .034 + (index % 4) * .006,
+    x: -1.9 + (index * 1.37) % 3.8,
+    drift: (index % 2 ? 1 : -1) * (.6 + (index % 3) * .5),
+    height: 3.4 + (index % 3) * .45,
+    swing: 1.25 + (index % 4) * .22,
     scale: .5 + (index % 3) * .13,
     color: ["#ffffff","#f0cea0","#d8e2bf","#ffc59d"][index % 4],
   })), []);
+  const materials = useRef<Array<THREE.MeshStandardMaterial | null>>([]);
   useEffect(() => {
     progress.current = leaves.map((leaf) => leaf.phase);
   }, [leaves]);
@@ -1210,17 +1235,26 @@ function DriftingLeaves() {
   useFrame(({clock}, delta) => {
     if (reducedMotion.current) return;
     const gust = windEnvelope(performance.now() / 1000 - gustStartedAt.current);
+    const t = clock.elapsedTime;
     leaves.forEach((leaf,index) => {
       const group = leafRefs.current[index];
       if (!group) return;
-      progress.current[index] = ((progress.current[index] ?? leaf.phase) + leaf.speed * delta * (1 + gust * 13)) % 1;
+      progress.current[index] = ((progress.current[index] ?? leaf.phase) + leaf.speed * Math.min(delta, .05) * (1 + gust * 6)) % 1;
       const travel = progress.current[index];
-      group.position.set(-6.4 + travel * 13.1, leaf.y + Math.sin(clock.elapsedTime * (.7 + gust * 3.5) + index * 1.8) * (.32 + gust * .2), leaf.z + Math.sin(clock.elapsedTime * .24 + index) * .34 + gust * (1.15 + index % 3 * .18));
-      group.rotation.set(clock.elapsedTime * (.38 + index*.025 + gust * 2.8), Math.sin(clock.elapsedTime*(.46 + gust * 2.4)+index)*1.25, clock.elapsedTime * (.58 + index*.035 + gust * 3.2));
+      // Leaves blow in through the balcony door and settle toward the floor with a falling-leaf
+      // pendulum: they swing side to side, lift a little at each end of the swing, and tilt with it.
+      const swing = Math.sin(t * leaf.swing + index * 1.9);
+      const lift = Math.abs(Math.cos(t * leaf.swing + index * 1.9));
+      const z = -5.6 + travel * 9.2 + gust * travel * 1.2;
+      const y = leaf.height - travel * (leaf.height - .55) + lift * .12 + Math.sin(travel * Math.PI) * gust * .6;
+      group.position.set(leaf.x + leaf.drift * travel + swing * (.32 + gust * .2), y, z);
+      group.rotation.set(-1.1 + swing * .55 + gust * Math.sin(t * 6 + index) * .6, t * (.25 + index * .03) + gust * t * .8, swing * .7);
+      const material = materials.current[index];
+      if (material) material.opacity = Math.min(1, travel * 12) * Math.min(1, (1 - travel) * 6);
     });
   });
-  return <group>{leaves.map((leaf,index)=><group key={index} ref={node => { leafRefs.current[index] = node; }} position={[-6.4+leaf.phase*13.1,leaf.y,leaf.z]} scale={leaf.scale}>
-    <mesh rotation={[0,0,.55]} scale={[.78,1,1]}><planeGeometry args={[.48,.54]}/><meshBasicMaterial map={leafTexture} color={leaf.color} transparent alphaTest={.08} depthWrite={false} toneMapped={false} side={THREE.DoubleSide}/></mesh>
+  return <group>{leaves.map((leaf,index)=><group key={index} ref={node => { leafRefs.current[index] = node; }} position={[leaf.x,leaf.height,-5.6]} scale={leaf.scale}>
+    <mesh rotation={[0,0,.55]} scale={[.78,1,1]}><planeGeometry args={[.48,.54]}/><meshStandardMaterial ref={node => { materials.current[index] = node; }} map={leafTexture} color={leaf.color} transparent alphaTest={.08} depthWrite={false} roughness={.6} side={THREE.DoubleSide}/></mesh>
   </group>)}</group>;
 }
 
@@ -1237,20 +1271,38 @@ function WindResponsiveProps() {
   useEffect(() => {
     if (windGust > 0) gustStartedAt.current = performance.now() / 1000;
   }, [windGust]);
+  const geometry = useMemo(() => new THREE.PlaneGeometry(.52, .34, 16, 8), []);
+  const bendUniforms = useMemo(() => papers.map(() => ({ curl: { value: 0 }, ripple: { value: 0 }, time: { value: 0 } })), [papers]);
+  const bendShader = useMemo(() => bendUniforms.map(uniforms => (shader: THREE.WebGLProgramParametersWithUniforms) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = `uniform float curl; uniform float ripple; uniform float time;\n${shader.vertexShader}`.replace(
+      "#include <begin_vertex>",
+      // The sheet curls along its length and a travelling ripple runs across it while airborne.
+      `#include <begin_vertex>\n      transformed.z += curl * (position.x * position.x) * 3.2 + ripple * sin(position.x * 14.0 - time * 11.0) * .012 * (position.x + .26);`,
+    );
+  }), [bendUniforms]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
   useFrame(({ clock }) => {
     const gustAge = performance.now() / 1000 - gustStartedAt.current;
     const gust = reducedMotion.current ? 0 : windEnvelope(gustAge);
     const normalized = THREE.MathUtils.clamp(gustAge / 3.4, 0, 1);
+    const t = clock.elapsedTime;
     papers.forEach((paper,index) => {
       const group = paperRefs.current[index];
       if (!group) return;
-      const flutter = Math.sin(clock.elapsedTime * (9 + index * 1.7) + index) * gust;
-      group.position.set(paper.position[0] + gust * paper.travel[0], paper.position[1] + Math.sin(normalized * Math.PI) * gust * (.3 + index * .07), paper.position[2] + gust * paper.travel[1]);
+      // Layered sines read as turbulent air rather than one metronomic wobble.
+      const flutter = (Math.sin(t * (9 + index * 1.7) + index) * .55 + Math.sin(t * (5.3 + index) + index * 2.3) * .3 + Math.sin(t * 13.7 + index * 4.1) * .15) * gust;
+      const arc = Math.sin(normalized * Math.PI);
+      group.position.set(paper.position[0] + gust * paper.travel[0], paper.position[1] + arc * gust * (.3 + index * .07), paper.position[2] + gust * paper.travel[1]);
       group.rotation.set(-Math.PI / 2 + flutter * .42, paper.rotation + gust * (.35 + index * .14), flutter * .32);
+      const uniforms = bendUniforms[index];
+      uniforms.curl.value = gust * (.35 + flutter * .25);
+      uniforms.ripple.value = gust;
+      uniforms.time.value = t;
     });
   });
   return <group>{papers.map((paper,index)=><group key={index} ref={node => { paperRefs.current[index] = node; }} position={paper.position} rotation={[-Math.PI/2,paper.rotation,0]}>
-    <mesh castShadow><planeGeometry args={[.52,.34]}/><meshStandardMaterial color={paper.color} roughness={.92} side={THREE.DoubleSide}/></mesh>
+    <mesh castShadow geometry={geometry}><meshStandardMaterial color={paper.color} roughness={.92} side={THREE.DoubleSide} onBeforeCompile={bendShader[index]} customProgramCacheKey={() => "paper-bend-v1"}/></mesh>
     <mesh position={[.02,.03,.004]}><planeGeometry args={[.28,.025]}/><meshBasicMaterial color="#a98561" transparent opacity={.38}/></mesh>
     <mesh position={[-.04,-.04,.004]}><planeGeometry args={[.34,.018]}/><meshBasicMaterial color="#8f775e" transparent opacity={.26}/></mesh>
   </group>)}</group>;
@@ -1266,22 +1318,35 @@ function DistantBirds() {
     {phase:.55,y:4.35,speed:.014,scale:.46},
     {phase:.76,y:3.9,speed:.017,scale:.52},
   ],[]);
+  const wing = useMemo(() => {
+    // Tapered, slightly swept wing with the pivot at the shoulder.
+    const shape = new THREE.Shape();
+    shape.moveTo(0, .012); shape.quadraticCurveTo(.09, .03, .2, -.01); shape.quadraticCurveTo(.1, -.008, 0, -.018); shape.lineTo(0, .012);
+    return new THREE.ShapeGeometry(shape, 8);
+  }, []);
+  useEffect(() => () => wing.dispose(), [wing]);
   useFrame(({clock}) => {
     if (reducedMotion.current) return;
+    const t = clock.elapsedTime;
     birds.forEach((bird,index) => {
       const group = birdRefs.current[index];
       if (!group) return;
-      const progress = (bird.phase + clock.elapsedTime * bird.speed) % 1;
+      const progress = (bird.phase + t * bird.speed) % 1;
       group.position.x = -4.65 + progress * 9.3;
-      group.position.y = bird.y + Math.sin(clock.elapsedTime * .34 + index) * .08;
-      const flap = Math.sin(clock.elapsedTime * (4.2 + index*.3) + index) * .26;
-      group.children[0].rotation.z = .28 + flap;
-      group.children[1].rotation.z = -.28 - flap;
+      // Birds alternate a burst of flaps with a glide, rising while they flap and sinking gently in the glide.
+      const cycle = (t * .32 + index * .37) % 1;
+      const flapping = THREE.MathUtils.smoothstep(cycle, 0, .08) * (1 - THREE.MathUtils.smoothstep(cycle, .45, .55));
+      group.position.y = bird.y + Math.sin(t * .34 + index) * .06 + Math.sin(cycle * Math.PI * 2) * .05;
+      group.rotation.z = Math.sin(t * .5 + index * 2) * .12;
+      const flap = Math.sin(t * (7.5 + index * .4) + index) * .55 * flapping + (1 - flapping) * .12;
+      group.children[0].rotation.z = .1 + flap;
+      group.children[1].rotation.z = -.1 - flap;
     });
   });
-  return <group>{birds.map((bird,index)=><group key={index} ref={node => { birdRefs.current[index] = node; }} position={[-4.65+bird.phase*9.3,bird.y,-4.28]} scale={bird.scale}>
-    <mesh position={[-.075,0,0]} rotation={[0,0,.28]}><planeGeometry args={[.18,.045]}/><meshBasicMaterial color="#4b443b" transparent opacity={.72} side={THREE.DoubleSide}/></mesh>
-    <mesh position={[.075,0,0]} rotation={[0,0,-.28]}><planeGeometry args={[.18,.045]}/><meshBasicMaterial color="#4b443b" transparent opacity={.72} side={THREE.DoubleSide}/></mesh>
+  return <group>{birds.map((bird,index)=><group key={index} ref={node => { birdRefs.current[index] = node; }} position={[-4.65+bird.phase*9.3,bird.y,-6.05]} scale={bird.scale * 1.15}>
+    <mesh geometry={wing} scale={[-1,1,1]}><meshBasicMaterial color="#4b443b" transparent opacity={.72} side={THREE.DoubleSide}/></mesh>
+    <mesh geometry={wing}><meshBasicMaterial color="#4b443b" transparent opacity={.72} side={THREE.DoubleSide}/></mesh>
+    <mesh scale={[.045,.016,.016]}><sphereGeometry args={[1,10,6]}/><meshBasicMaterial color="#4b443b" transparent opacity={.72}/></mesh>
   </group>)}</group>;
 }
 
