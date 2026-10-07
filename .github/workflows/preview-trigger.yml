@@ -1,0 +1,16 @@
+name: Preview trigger
+
+# Pushes to work branches only signal the Pages deploy. The deploy itself runs from main
+# (via workflow_run), because the github-pages environment only accepts the default branch.
+on:
+  push:
+    branches-ignore: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  signal:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Preview requested for ${{ github.ref_name }}"

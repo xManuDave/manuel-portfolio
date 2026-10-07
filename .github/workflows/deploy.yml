@@ -1,8 +1,13 @@
 name: Deploy to GitHub Pages
 
+# The live site serves main at the root and the most recently pushed work branch at /preview/,
+# so every push is visible at a fixed URL without merging first.
 on:
   push:
     branches: [main]
+  workflow_run:
+    workflows: [Preview trigger]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -19,17 +24,47 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - id: pages
         uses: actions/configure-pages@v5
+      - id: preview
+        name: Pick the preview branch
+        env:
+          RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          if [ -n "$RUN_BRANCH" ] && [ "$RUN_BRANCH" != "main" ]; then
+            branch="$RUN_BRANCH"
+          else
+            branch=$(git for-each-ref --sort=-committerdate refs/remotes/origin --format='%(refname:lstrip=3)' | grep -vxE 'main|HEAD' | head -n1 || true)
+          fi
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "Preview branch: ${branch:-none}"
       # npm ci trips over optional wasm deps (@emnapi) in the lockfile; install still honours it
       - run: npm install --no-audit --no-fund
       - run: npm run build
         env:
           NEXT_PUBLIC_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+      - name: Build the preview branch into /preview
+        if: steps.preview.outputs.branch != ''
+        env:
+          BRANCH: ${{ steps.preview.outputs.branch }}
+          NEXT_PUBLIC_BASE_PATH: ${{ steps.pages.outputs.base_path }}/preview
+        run: |
+          git worktree add ../preview "origin/$BRANCH"
+          cd ../preview
+          # A broken work branch must never take the main site down with it.
+          if npm install --no-audit --no-fund && npm run build; then
+            cp -r out "$GITHUB_WORKSPACE/out/preview"
+            echo "$BRANCH @ $(git rev-parse --short HEAD)" > "$GITHUB_WORKSPACE/out/preview/version.txt"
+          else
+            echo "::warning::Preview build for $BRANCH failed; publishing main only."
+          fi
       - run: touch out/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:

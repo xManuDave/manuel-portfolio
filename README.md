@@ -18,6 +18,10 @@ npm run build
 npm start
 ```
 
+## Live preview
+
+GitHub Pages serves `main` at https://xmanudave.github.io/manuel-portfolio/ and the most recently pushed work branch at https://xmanudave.github.io/manuel-portfolio/preview/ (its branch and commit are in `/preview/version.txt`). Every push redeploys automatically.
+
 ## Current implementation
 
 - modular procedural room architecture and coherent placeholder asset batches
